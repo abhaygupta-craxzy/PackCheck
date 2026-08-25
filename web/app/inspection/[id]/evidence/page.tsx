@@ -216,10 +216,21 @@ export default function EvidencePage() {
           },
         ]);
         setSelectedImageId("img-demo-1");
-      } else {
+        let loadedImages = imagesRes.data ?? [];
+        if (typeof window !== "undefined" && loadedImages.length === 0) {
+          try {
+            const cached = sessionStorage.getItem(`packcheck_images_${id}`) || localStorage.getItem(`packcheck_images_${id}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) loadedImages = parsed;
+            }
+          } catch (e) {
+            console.warn("Storage cache read notice:", e);
+          }
+        }
         setFields(fieldsRes.data ?? []);
-        setImages(imagesRes.data ?? []);
-        if (imagesRes.data?.length) setSelectedImageId(imagesRes.data[0].id);
+        setImages(loadedImages);
+        if (loadedImages.length) setSelectedImageId(loadedImages[0].id);
       }
     } finally {
       setIsLoading(false);

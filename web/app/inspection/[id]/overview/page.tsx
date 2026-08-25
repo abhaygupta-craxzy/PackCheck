@@ -84,8 +84,21 @@ export default function InspectionOverviewPage() {
         return;
       }
 
+      let loadedImages = imagesRes.data ?? [];
+      if (typeof window !== "undefined" && loadedImages.length === 0) {
+        try {
+          const cached = sessionStorage.getItem(`packcheck_images_${id}`) || localStorage.getItem(`packcheck_images_${id}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) loadedImages = parsed;
+          }
+        } catch (e) {
+          console.warn("Storage cache read notice:", e);
+        }
+      }
+
       setInspection(inspRes.data);
-      setImages(imagesRes.data ?? []);
+      setImages(loadedImages);
       setFields(fieldsRes.data ?? []);
       setFindings(findingsRes.data ?? []);
       setEvents(eventsRes.data ?? []);
