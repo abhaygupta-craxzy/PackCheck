@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { getInspectionData } from "@/lib/actions/inspection";
+import { getInspectionData, flagProductToOfficer } from "@/lib/actions/inspection";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -31,6 +31,8 @@ import {
   Check,
   X,
   Eye,
+  Flag,
+  Send,
 } from "lucide-react";
 
 export default function ConsumerCheckResultPage() {
@@ -46,6 +48,13 @@ export default function ConsumerCheckResultPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null);
   const [activeEvidenceField, setActiveEvidenceField] = useState<string | null>(null);
+
+  // Flag / Report to Officer State
+  const [isFlagged, setIsFlagged] = useState(false);
+  const [flagStatus, setFlagStatus] = useState<string>("pending_review");
+  const [isFlagModalOpen, setIsFlagModalOpen] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+  const [isSubmittingFlag, setIsSubmittingFlag] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -76,6 +85,13 @@ export default function ConsumerCheckResultPage() {
           setImages(loadedImages);
           setExtractedFields(res.extractedFields || []);
           setFindings(res.findings || []);
+
+          // Check if already flagged
+          if (res.citizenFlag || res.inspection?.is_flagged) {
+            setIsFlagged(true);
+            const statusVal = String(res.citizenFlag?.status || res.inspection?.flag_status || "pending_review");
+            setFlagStatus(statusVal);
+          }
         }
       } catch (err) {
         console.error("Failed to load check result:", err);
@@ -85,6 +101,32 @@ export default function ConsumerCheckResultPage() {
     }
     loadData();
   }, [inspectionId]);
+
+  const handleReportToOfficer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isFlagged || isSubmittingFlag) return;
+
+    setIsSubmittingFlag(true);
+    try {
+      const res = await flagProductToOfficer({
+        inspectionId,
+        reason: flagReason || "Consumer requested official Legal Metrology inspection.",
+      });
+
+      if (res.success) {
+        setIsFlagged(true);
+        setFlagStatus(res.status || "pending_review");
+        setIsFlagModalOpen(false);
+      } else {
+        alert(res.error || "Failed to submit report.");
+      }
+    } catch (err) {
+      console.error("Report submit error:", err);
+      alert("Unable to report product. Please try again.");
+    } finally {
+      setIsSubmittingFlag(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -153,13 +195,30 @@ export default function ConsumerCheckResultPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Report to Officer Action */}
+          {isFlagged ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold shadow-2xs">
+              <CheckCircle2 className="h-3.5 w-3.5 text-amber-600" />
+              <span>Reported to Officer</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsFlagModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold transition shadow-2xs cursor-pointer"
+            >
+              <Flag className="h-3.5 w-3.5 text-rose-600" />
+              <span>Report to Officer</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => window.print()}
             className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 px-3 py-1.5 rounded-xl border border-slate-300 bg-white shadow-2xs hover:bg-slate-50 transition cursor-pointer"
           >
             <Printer className="h-3.5 w-3.5 text-slate-500" />
-            <span>Download / Print Report</span>
+            <span className="hidden sm:inline">Download / Print</span>
           </button>
 
           <Link
@@ -179,7 +238,7 @@ export default function ConsumerCheckResultPage() {
 
         {/* STEP 5: LARGE STATUS BANNER */}
         <div
-          className={`rounded-3xl border-2 p-6 sm:p-8 shadow-sm space-y-3 ${
+          className={`rounded-3xl border-2 p-6 sm:p-8 shadow-sm space-y-4 ${
             statusType === "compliant"
               ? "border-emerald-500 bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white text-emerald-950"
               : statusType === "attention"
@@ -226,13 +285,40 @@ export default function ConsumerCheckResultPage() {
             </span>
           </div>
 
-          <p className="text-xs sm:text-sm font-medium leading-relaxed max-w-2xl pt-1">
+          <p className="text-xs sm:text-sm font-medium leading-relaxed max-w-2xl">
             {statusType === "compliant"
               ? "Based on the information detected from your uploaded images, the mandatory packaged commodity declarations appear to be present and consistent with PCR 2011 requirements."
               : statusType === "attention"
               ? "We found information on the package label that may require a closer look or may be missing complete mandatory details."
               : "We detected a potential issue with one or more mandatory Legal Metrology declarations on this package label."}
           </p>
+
+          {/* Report to Officer Callout inside status box */}
+          <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-3">
+            {isFlagged ? (
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-900 bg-amber-100/80 border border-amber-300 px-3.5 py-1.5 rounded-xl">
+                <Check className="h-4 w-4 text-amber-700" />
+                <span>
+                  Report submitted to Enforcement Officer • Status:{" "}
+                  <span className="uppercase font-mono text-[11px]">{flagStatus}</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between w-full">
+                <span className="text-xs text-slate-600 font-medium">
+                  Notice something inaccurate on this package? You can report it directly to a Legal Metrology officer.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsFlagModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs cursor-pointer ml-auto shrink-0"
+                >
+                  <Flag className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Report to Officer</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* STEP 3: PRODUCT SUMMARY */}
@@ -526,6 +612,83 @@ export default function ConsumerCheckResultPage() {
             © 2026 PackCheck India • Smart India Hackathon PS 26034
           </p>
         </div>
+
+        {/* REPORT TO OFFICER MODAL */}
+        {isFlagModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 sm:p-7 space-y-5 animate-in zoom-in-95">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center">
+                    <Flag className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Report to Legal Metrology</h3>
+                    <p className="text-xs text-slate-500 font-medium">Flag this product for official inspection</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFlagModalOpen(false)}
+                  className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 space-y-2 text-xs text-slate-600">
+                <span className="font-extrabold text-slate-800 block">Information shared with Officer:</span>
+                <ul className="list-disc list-inside space-y-1 text-slate-600 font-medium">
+                  <li>Original uploaded package evidence image</li>
+                  <li>Extracted OCR declarations (MRP, Net Qty, Dates)</li>
+                  <li>Automated Legal Metrology PCR 2011 rule findings</li>
+                </ul>
+              </div>
+
+              <form onSubmit={handleReportToOfficer} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Reason or Remarks (Optional):
+                  </label>
+                  <textarea
+                    value={flagReason}
+                    onChange={(e) => setFlagReason(e.target.value)}
+                    placeholder="e.g., The declared MRP seems altered, or the manufacturer address is illegible..."
+                    rows={3}
+                    className="w-full text-xs rounded-xl border border-slate-300 p-3 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFlagModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingFlag}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition disabled:opacity-60 cursor-pointer"
+                  >
+                    {isSubmittingFlag ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-3.5 w-3.5" />
+                        <span>Submit Report</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>

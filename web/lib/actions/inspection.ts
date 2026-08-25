@@ -728,17 +728,19 @@ export async function getInspectionData(inspectionId: string): Promise<{
   extractedFields?: Record<string, unknown>[];
   findings?: Record<string, unknown>[];
   events?: Record<string, unknown>[];
+  citizenFlag?: Record<string, unknown> | null;
   error?: string;
 }> {
   const supabase = await createServerSupabaseClient();
 
   try {
-    const [inspectionRes, imagesRes, fieldsRes, findingsRes, eventsRes] = await Promise.all([
+    const [inspectionRes, imagesRes, fieldsRes, findingsRes, eventsRes, flagRes] = await Promise.all([
       supabase.from("inspections").select("*, profiles!created_by(full_name, badge_number, designation)").eq("id", inspectionId).single(),
       supabase.from("inspection_images").select("*").eq("inspection_id", inspectionId).order("created_at", { ascending: true }),
       supabase.from("extracted_fields").select("*").eq("inspection_id", inspectionId).order("field_name", { ascending: true }),
       supabase.from("pipeline_findings").select("*").eq("inspection_id", inspectionId).order("finding_number", { ascending: true }),
       supabase.from("processing_events").select("*").eq("inspection_id", inspectionId).order("created_at", { ascending: false }).limit(20),
+      supabase.from("citizen_flags").select("*, profiles!reviewed_by(full_name, designation)").eq("inspection_id", inspectionId).maybeSingle(),
     ]);
 
     if (inspectionRes.error) throw inspectionRes.error;
@@ -750,9 +752,230 @@ export async function getInspectionData(inspectionId: string): Promise<{
       extractedFields: fieldsRes.data ?? [],
       findings: findingsRes.data ?? [],
       events: eventsRes.data ?? [],
+      citizenFlag: flagRes.data ?? null,
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to load inspection";
     return { success: false, error: msg };
   }
 }
+
+// =========================================================================
+// SERVER ACTION: Flag / Report Product to Legal Metrology Officer
+// =========================================================================
+
+export async function flagProductToOfficer(formData: {
+  inspectionId: string;
+  reason: string;
+  reporterId?: string;
+}): Promise<{ success: boolean; flagId?: string; status?: string; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const reporterId = formData.reporterId || user?.id || null;
+
+    // 1. Check if already flagged in citizen_flags
+    const { data: existingFlag } = await supabase
+      .from("citizen_flags")
+      .select("id, status")
+      .eq("inspection_id", formData.inspectionId)
+      .maybeSingle();
+
+    if (existingFlag) {
+      return {
+        success: true,
+        flagId: existingFlag.id,
+        status: existingFlag.status || "pending_review",
+      };
+    }
+
+    // 2. Insert new flag record
+    const { data: flagRecord, error: flagErr } = await supabase
+      .from("citizen_flags")
+      .insert({
+        inspection_id: formData.inspectionId,
+        reporter_id: reporterId,
+        reason: formData.reason.trim() || "Consumer flagged potential label non-compliance.",
+        status: "pending_review",
+      })
+      .select()
+      .single();
+
+    // 3. Mark inspection record as flagged
+    await supabase
+      .from("inspections")
+      .update({
+        is_flagged: true,
+        flag_status: "pending_review",
+        flagged_at: new Date().toISOString(),
+        source_type: "citizen_report",
+      })
+      .eq("id", formData.inspectionId);
+
+    // 4. Record audit event
+    await supabase.from("processing_events").insert({
+      inspection_id: formData.inspectionId,
+      stage: "flagged_by_citizen",
+      status: "completed",
+      message: `Product reported by consumer. Reason: ${formData.reason.slice(0, 100)}`,
+      metadata: { reporter_id: reporterId, flag_id: flagRecord?.id },
+    });
+
+    return {
+      success: true,
+      flagId: flagRecord?.id || `flag_${Date.now()}`,
+      status: "pending_review",
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to flag product.";
+    console.error("Flagging error:", msg);
+    return { success: false, error: msg };
+  }
+}
+
+// =========================================================================
+// SERVER ACTION: Update Flagged Report Review Status (Officer Action)
+// =========================================================================
+
+export async function updateFlaggedReportStatus(formData: {
+  inspectionId: string;
+  newStatus: "pending_review" | "under_review" | "resolved" | "dismissed";
+  officerNotes?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 1. Update citizen_flags record
+    await supabase
+      .from("citizen_flags")
+      .update({
+        status: formData.newStatus,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user?.id ?? null,
+        officer_notes: formData.officerNotes?.trim() ?? null,
+      })
+      .eq("inspection_id", formData.inspectionId);
+
+    // 2. Update inspection flag status
+    await supabase
+      .from("inspections")
+      .update({
+        flag_status: formData.newStatus,
+        status:
+          formData.newStatus === "resolved"
+            ? "verified"
+            : formData.newStatus === "dismissed"
+            ? "cleared"
+            : "review_required",
+      })
+      .eq("id", formData.inspectionId);
+
+    // 3. Log audit event
+    await supabase.from("processing_events").insert({
+      inspection_id: formData.inspectionId,
+      stage: "officer_review",
+      status: "completed",
+      message: `Officer updated report status to: ${formData.newStatus}`,
+      metadata: { officer_id: user?.id, new_status: formData.newStatus, notes: formData.officerNotes },
+    });
+
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to update report status.";
+    console.error("Status update error:", msg);
+    return { success: false, error: msg };
+  }
+}
+
+// =========================================================================
+// SERVER ACTION: Get Live Database Dashboard Statistics
+// =========================================================================
+
+export async function getDashboardStatistics(): Promise<{
+  totalScanned: number;
+  compliantCount: number;
+  potentialViolations: number;
+  pendingReview: number;
+  consumerReportsCount: number;
+  complianceRate: number;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  try {
+    const [allInspectionsRes, flagsRes] = await Promise.all([
+      supabase.from("inspections").select("id, status, is_flagged, source_type"),
+      supabase.from("citizen_flags").select("id, status"),
+    ]);
+
+    const inspections = allInspectionsRes.data || [];
+    const flags = flagsRes.data || [];
+
+    const totalScanned = inspections.length;
+    const compliantCount = inspections.filter((i) => i.status === "cleared" || i.status === "verified").length;
+    const potentialViolations = inspections.filter(
+      (i) => i.status === "non_compliant" || i.status === "review_required" || i.is_flagged
+    ).length;
+    const pendingReview = inspections.filter(
+      (i) => i.status === "review_required" || i.status === "draft"
+    ).length;
+    const consumerReportsCount = flags.length > 0 ? flags.length : inspections.filter((i) => i.is_flagged || i.source_type === "citizen_report").length;
+
+    const complianceRate = totalScanned > 0 ? Math.round((compliantCount / totalScanned) * 100) : 100;
+
+    return {
+      totalScanned,
+      compliantCount,
+      potentialViolations,
+      pendingReview,
+      consumerReportsCount,
+      complianceRate,
+    };
+  } catch (error) {
+    console.error("Stats calculation notice:", error);
+    return {
+      totalScanned: 0,
+      compliantCount: 0,
+      potentialViolations: 0,
+      pendingReview: 0,
+      consumerReportsCount: 0,
+      complianceRate: 100,
+    };
+  }
+}
+
+// =========================================================================
+// SERVER ACTION: Get Flagged Consumer Reports List
+// =========================================================================
+
+export async function getFlaggedReports(): Promise<any[]> {
+  const supabase = await createServerSupabaseClient();
+
+  try {
+    const { data: inspections, error } = await supabase
+      .from("inspections")
+      .select(`
+        *,
+        citizen_flags (*),
+        inspection_images (*),
+        pipeline_findings (*),
+        extracted_fields (*)
+      `)
+      .or("is_flagged.eq.true,source_type.eq.citizen_report")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return inspections || [];
+  } catch (error) {
+    console.warn("Flagged reports fetch notice:", error);
+    return [];
+  }
+}
+

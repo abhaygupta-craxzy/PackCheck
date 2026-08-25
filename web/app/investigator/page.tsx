@@ -38,241 +38,97 @@ import {
   ExternalLink,
   Package,
   BookOpen,
+  Flag,
+  Send,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getDashboardStatistics,
+  getFlaggedReports,
+  updateFlaggedReportStatus,
+} from "@/lib/actions/inspection";
 import pcrRulesData from "@/lib/rules/pcr_2011.json";
 
 // =========================================================================
-// TYPES
+// TYPES (PERSISTED DATABASE MODEL)
 // =========================================================================
+
+interface DBExtractedField {
+  id: string;
+  field_name: string;
+  field_label?: string;
+  raw_value: string;
+  normalized_value?: string;
+  confidence_score?: number;
+  evidence_bounding_box?: any;
+  validation_status?: string;
+  review_status?: string;
+  is_human_corrected?: boolean;
+  corrected_value?: string | null;
+  rule_reference?: string;
+}
+
+interface DBPipelineFinding {
+  id: string;
+  finding_number: string;
+  rule_code?: string;
+  severity: "critical" | "warning" | "advisory" | "passed" | string;
+  title: string;
+  statutory_requirement?: string;
+  observed_summary?: string;
+  explanation?: string;
+  review_decision?: string;
+  inspector_notes?: string | null;
+  rule_reference?: string;
+  rule_id?: string;
+}
+
+interface DBInspectionImage {
+  id: string;
+  storage_path: string;
+  public_url: string;
+  original_filename: string;
+  image_type: string;
+}
 
 interface DBInspection {
   id: string;
   case_number: string;
-  title: string | null;
+  title: string;
   product_name: string;
   brand: string;
   category: string;
+  source_type: string;
   status: string;
-  source_type: string | null;
-  overall_confidence_score: number | null;
+  marketplace_url?: string;
+  location_coordinates?: any;
+  overall_confidence_score?: number;
+  is_flagged?: boolean;
+  flag_status?: string;
+  flagged_at?: string;
   created_at: string;
-  images?: DBImage[];
-  fields?: DBField[];
-  findings?: DBFinding[];
+  fields?: DBExtractedField[];
+  findings?: DBPipelineFinding[];
+  images?: DBInspectionImage[];
+  citizen_flags?: any[];
 }
-
-interface DBImage {
-  id: string;
-  inspection_id: string;
-  image_type: string;
-  public_url: string | null;
-  storage_path: string;
-}
-
-interface DBField {
-  id: string;
-  inspection_id: string;
-  field_name: string;
-  field_label: string;
-  raw_value: string | null;
-  confidence_score: number | null;
-  review_status: string;
-  is_human_corrected: boolean;
-  corrected_value: string | null;
-}
-
-interface DBFinding {
-  id: string;
-  inspection_id: string;
-  finding_number: string;
-  title: string;
-  severity: "critical" | "warning" | "advisory" | "compliant";
-  observed_value: string | null;
-  expected_requirement: string;
-  explanation: string;
-  rule_id: string | null;
-  review_decision: string;
-  investigator_notes: string | null;
-}
-
-// Fallback seed items if database has 0 inspections
-const SEED_FALLBACK_CASES: DBInspection[] = [
-  {
-    id: "demo-001",
-    case_number: "LM-2026-0842",
-    title: "NutriSnack Roasted Almonds 200g",
-    product_name: "NutriSnack Roasted Almonds 200g",
-    brand: "NutriSnack Foods Ltd.",
-    category: "Packaged Food",
-    status: "review_required",
-    source_type: "physical_inspection",
-    overall_confidence_score: 94,
-    created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    fields: [
-      {
-        id: "f1",
-        inspection_id: "demo-001",
-        field_name: "mrp",
-        field_label: "Maximum Retail Price (MRP)",
-        raw_value: "₹ 199.00 (Incl. of all taxes)",
-        confidence_score: 98,
-        review_status: "accepted",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-      {
-        id: "f2",
-        inspection_id: "demo-001",
-        field_name: "net_quantity",
-        field_label: "Net Quantity",
-        raw_value: "200 g (Numeral height 2.2mm)",
-        confidence_score: 81,
-        review_status: "pending",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-      {
-        id: "f3",
-        inspection_id: "demo-001",
-        field_name: "manufacturing_date",
-        field_label: "Month & Year of Manufacture",
-        raw_value: "07/2026",
-        confidence_score: 98,
-        review_status: "accepted",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-      {
-        id: "f4",
-        inspection_id: "demo-001",
-        field_name: "manufacturer_name",
-        field_label: "Manufacturer / Packer Details",
-        raw_value: "NutriSnack Foods Ltd., Plot 42, GIDC, Gujarat",
-        confidence_score: 94,
-        review_status: "accepted",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-    ],
-    findings: [
-      {
-        id: "find-1",
-        inspection_id: "demo-001",
-        finding_number: "PCR-2011-R7-01",
-        title: "Net Quantity Numeral Height Sub-Standard",
-        severity: "warning",
-        observed_value: "Numeral height 2.2 mm for 200g net quantity",
-        expected_requirement: "Rule 7 Table 1 specifies minimum numeral height of 4.0 mm for net quantity 200g-500g",
-        explanation: "Potential violation of Rule 7(1) — height of numeral is less than the prescribed minimum of 4.0mm.",
-        rule_id: "Rule 7",
-        review_decision: "pending",
-        investigator_notes: "Requires physical verification with calibrated scale.",
-      },
-      {
-        id: "find-2",
-        inspection_id: "demo-001",
-        finding_number: "PCR-2011-R6-01",
-        title: "Unit Sale Price (USP) Missing",
-        severity: "critical",
-        observed_value: "No unit sale price declared (e.g. ₹0.995/g)",
-        expected_requirement: "Rule 6(1)(h) requires mandatory Unit Sale Price declaration for packaged commodities",
-        explanation: "Mandatory declaration under GSR 711(E) not detected on principal display panel.",
-        rule_id: "Rule 6(1)(h)",
-        review_decision: "pending",
-        investigator_notes: null,
-      },
-    ],
-  },
-  {
-    id: "demo-002",
-    case_number: "LM-2026-0839",
-    title: "PureDrop Refined Mustard Oil 1 Litre",
-    product_name: "PureDrop Refined Mustard Oil 1 Litre",
-    brand: "PureDrop Agro Mills",
-    category: "Edible Oils",
-    status: "verified",
-    source_type: "ecommerce_listing",
-    overall_confidence_score: 97,
-    created_at: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    fields: [
-      {
-        id: "f21",
-        inspection_id: "demo-002",
-        field_name: "mrp",
-        field_label: "Maximum Retail Price (MRP)",
-        raw_value: "₹ 185.00 (Incl. of all taxes)",
-        confidence_score: 99,
-        review_status: "accepted",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-      {
-        id: "f22",
-        inspection_id: "demo-002",
-        field_name: "net_quantity",
-        field_label: "Net Quantity",
-        raw_value: "1 L (810 g at 30°C)",
-        confidence_score: 96,
-        review_status: "accepted",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-    ],
-    findings: [
-      {
-        id: "find-21",
-        inspection_id: "demo-002",
-        finding_number: "PCR-2011-R6-02",
-        title: "Temperature Declaration on Edible Oil",
-        severity: "warning",
-        observed_value: "Weight declared as 810g at 30°C",
-        expected_requirement: "Rule 12 requires dual declaration of volume and mass at 30°C for edible oils",
-        explanation: "Dual declaration present and compliant with Rule 12 provisions.",
-        rule_id: "Rule 12",
-        review_decision: "accepted_compliant",
-        investigator_notes: "Complies with legal dual-declaration requirement.",
-      },
-    ],
-  },
-  {
-    id: "demo-003",
-    case_number: "LM-2026-0835",
-    title: "SunGlow Intensive Night Moisturizer 50g",
-    product_name: "SunGlow Intensive Night Moisturizer 50g",
-    brand: "SunGlow Derma Labs",
-    category: "Cosmetics",
-    status: "cleared",
-    source_type: "physical_inspection",
-    overall_confidence_score: 99,
-    created_at: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
-    fields: [
-      {
-        id: "f31",
-        inspection_id: "demo-003",
-        field_name: "mrp",
-        field_label: "Maximum Retail Price (MRP)",
-        raw_value: "₹ 450.00 (Incl. of all taxes)",
-        confidence_score: 99,
-        review_status: "accepted",
-        is_human_corrected: false,
-        corrected_value: null,
-      },
-    ],
-    findings: [],
-  },
-];
-
-// =========================================================================
-// MAIN COMPONENT
-// =========================================================================
 
 export default function InvestigatorDashboard() {
   const supabase = createClient();
 
   const [inspections, setInspections] = useState<DBInspection[]>([]);
+  const [flaggedReports, setFlaggedReports] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalScanned: 0,
+    compliantCount: 0,
+    potentialViolations: 0,
+    pendingReview: 0,
+    consumerReportsCount: 0,
+    complianceRate: 100,
+  });
+
   const [selectedCase, setSelectedCase] = useState<DBInspection | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "queue" | "inspections" | "rules">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "queue" | "inspections" | "flags" | "rules">("overview");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -307,11 +163,15 @@ export default function InvestigatorDashboard() {
         }
       }
 
-      // 2. Fetch real inspections from Supabase
-      const { data: dbInspections, error: inspErr } = await supabase
-        .from("inspections")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // 2. Fetch live statistics & flagged reports in parallel
+      const [liveStats, liveFlagged, { data: dbInspections, error: inspErr }] = await Promise.all([
+        getDashboardStatistics(),
+        getFlaggedReports(),
+        supabase.from("inspections").select("*").order("created_at", { ascending: false }),
+      ]);
+
+      setStats(liveStats);
+      setFlaggedReports(liveFlagged || []);
 
       if (!inspErr && dbInspections && dbInspections.length > 0) {
         // Fetch child fields, findings, images for these inspections
@@ -333,14 +193,11 @@ export default function InvestigatorDashboard() {
         setInspections(fullInspections);
         setSelectedCase(fullInspections[0]);
       } else {
-        // Use seed items if database table is currently empty
-        setInspections(SEED_FALLBACK_CASES);
-        setSelectedCase(SEED_FALLBACK_CASES[0]);
+        setInspections([]);
+        setSelectedCase(null);
       }
     } catch (err) {
       console.error("Failed to load inspections:", err);
-      setInspections(SEED_FALLBACK_CASES);
-      setSelectedCase(SEED_FALLBACK_CASES[0]);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -485,6 +342,22 @@ export default function InvestigatorDashboard() {
               Inspections
             </button>
             <button
+              onClick={() => setActiveTab("flags")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "flags"
+                  ? "bg-white text-rose-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Flag className="h-3.5 w-3.5 text-rose-600" />
+              <span>Consumer Reports</span>
+              {flaggedReports.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-800 text-[10px] font-extrabold border border-rose-300">
+                  {flaggedReports.length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab("rules")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                 activeTab === "rules"
@@ -574,35 +447,35 @@ export default function InvestigatorDashboard() {
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           <KPICard
             title="Total Inspections"
-            value={String(totalInspectionsCount)}
-            subtitle="Real database cases"
+            value={String(stats.totalScanned || totalInspectionsCount)}
+            subtitle="Persisted database scans"
             badge="Enforcement"
             badgeColor="blue"
             icon={<Scale className="h-5 w-5 text-blue-600" />}
           />
           <KPICard
             title="Pending Review"
-            value={String(pendingReviewCount)}
-            subtitle="Require investigator decision"
+            value={String(stats.pendingReview || pendingReviewCount)}
+            subtitle="Require officer decision"
             badge="Action Required"
             badgeColor="amber"
             icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
           />
           <KPICard
             title="Potential Violations"
-            value={String(totalViolationsCount)}
+            value={String(stats.potentialViolations || totalViolationsCount)}
             subtitle="Detected under PCR 2011"
             badge="Flagged"
             badgeColor="red"
             icon={<AlertOctagon className="h-5 w-5 text-rose-600" />}
           />
           <KPICard
-            title="Verified Findings"
-            value={String(verifiedCount)}
-            subtitle="Confirmed & docketed"
-            badge="Legally Validated"
+            title="Consumer Reports"
+            value={String(stats.consumerReportsCount || flaggedReports.length)}
+            subtitle="Citizen flagged products"
+            badge="Citizen Intake"
             badgeColor="emerald"
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+            icon={<Flag className="h-5 w-5 text-emerald-600" />}
           />
         </section>
 
@@ -934,7 +807,7 @@ export default function InvestigatorDashboard() {
                                     : "bg-amber-500 text-white"
                                 }`}
                               >
-                                {finding.review_decision.replace(/_/g, " ")}
+                                {(finding.review_decision || "pending").replace(/_/g, " ")}
                               </span>
                             </div>
 
@@ -979,8 +852,215 @@ export default function InvestigatorDashboard() {
         )}
 
         {/* =========================================================
-            TAB: REVIEW QUEUE
+            TAB: CONSUMER REPORTS / CITIZEN FLAGS
         ========================================================== */}
+        {activeTab === "flags" && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <Flag className="h-5 w-5 text-rose-600" />
+                  <span>Consumer Reports & Citizen Flags</span>
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Direct package reports submitted by citizens for official Legal Metrology officer review
+                </p>
+              </div>
+
+              <span className="text-xs font-bold text-rose-800 bg-rose-50 border border-rose-200 px-3 py-1 rounded-full">
+                {flaggedReports.length} Active Flag{flaggedReports.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            {flaggedReports.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center space-y-2">
+                <Flag className="h-8 w-8 text-slate-300 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-700">No consumer reports yet</h3>
+                <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto">
+                  When consumers scan products and click &quot;Report to Officer&quot;, the cases will appear here for investigation.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {flaggedReports.map((report) => {
+                  const flag = Array.isArray(report.citizen_flags) ? report.citizen_flags[0] : report.citizen_flags;
+                  const currentStatus = flag?.status || report.flag_status || "pending_review";
+                  const primaryImage = report.inspection_images?.[0]?.public_url;
+
+                  return (
+                    <div
+                      key={report.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 transition shadow-2xs space-y-4"
+                    >
+                      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          {/* Image preview */}
+                          <div className="h-16 w-16 rounded-xl border border-slate-200 bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center">
+                            {primaryImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={primaryImage}
+                                alt="thumb"
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <Package className="h-6 w-6 text-slate-400" />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                {report.case_number}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                  currentStatus === "resolved"
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : currentStatus === "under_review"
+                                    ? "bg-blue-100 text-blue-800 border border-blue-200"
+                                    : currentStatus === "dismissed"
+                                    ? "bg-slate-100 text-slate-600 border border-slate-200"
+                                    : "bg-rose-100 text-rose-800 border border-rose-200"
+                                }`}
+                              >
+                                {currentStatus.replace(/_/g, " ")}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                {new Date(report.created_at).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+
+                            <h3 className="text-sm font-bold text-slate-900">{report.product_name}</h3>
+                            <p className="text-xs text-slate-500 font-medium">
+                              {report.brand} • {report.category}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Direct Inspect Button */}
+                        <Link
+                          href={`/inspection/${report.id}/overview`}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition shrink-0"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Inspect Evidence</span>
+                        </Link>
+                      </div>
+
+                      {/* Consumer Reason / Remarks */}
+                      <div className="rounded-xl border border-rose-100 bg-rose-50/60 p-3 text-xs text-rose-950 space-y-1">
+                        <span className="font-extrabold text-rose-900 block">Citizen Report Remarks:</span>
+                        <p className="font-medium text-slate-700">
+                          &quot;{flag?.reason || "Consumer flagged potential declaration discrepancies for officer inspection."}&quot;
+                        </p>
+                      </div>
+
+                      {/* Findings Summary */}
+                      {report.pipeline_findings && report.pipeline_findings.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            Detected AI Findings:
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {report.pipeline_findings.map((f: any) => (
+                              <span
+                                key={f.id}
+                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border flex items-center gap-1 ${
+                                  f.severity === "critical"
+                                    ? "bg-rose-50 border-rose-200 text-rose-800"
+                                    : "bg-amber-50 border-amber-200 text-amber-800"
+                                }`}
+                              >
+                                <AlertTriangle className="h-3 w-3" />
+                                {f.title}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Officer Decision Controls */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                        <span className="text-xs text-slate-500 font-medium">
+                          Update Citizen Report Status:
+                        </span>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await updateFlaggedReportStatus({
+                                inspectionId: report.id,
+                                newStatus: "under_review",
+                                officerNotes: "Case marked under investigation by officer.",
+                              });
+                              showNotification("Status updated to Under Review");
+                              loadData();
+                            }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                              currentStatus === "under_review"
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-blue-700 border-blue-200 hover:bg-blue-50"
+                            }`}
+                          >
+                            Under Review
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await updateFlaggedReportStatus({
+                                inspectionId: report.id,
+                                newStatus: "resolved",
+                                officerNotes: "Inspection completed & action taken.",
+                              });
+                              showNotification("Status updated to Resolved");
+                              loadData();
+                            }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                              currentStatus === "resolved"
+                                ? "bg-emerald-600 text-white border-emerald-600"
+                                : "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                            }`}
+                          >
+                            Resolve / Confirm
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await updateFlaggedReportStatus({
+                                inspectionId: report.id,
+                                newStatus: "dismissed",
+                                officerNotes: "Product reviewed and determined compliant.",
+                              });
+                              showNotification("Report dismissed");
+                              loadData();
+                            }}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                              currentStatus === "dismissed"
+                                ? "bg-slate-700 text-white border-slate-700"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {activeTab === "queue" && (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div>

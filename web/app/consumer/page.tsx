@@ -321,7 +321,7 @@ export default function ConsumerDashboard() {
               <div className="flex items-center gap-2">
                 <span className="text-base font-black tracking-tight text-slate-900">PackCheck</span>
                 <span className="rounded-md bg-emerald-100/90 px-2 py-0.5 text-[10px] font-extrabold text-emerald-900 border border-emerald-300/80">
-                  CITIZEN
+                  Consumer
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 font-semibold">Legal Metrology Product Verifier</p>
@@ -441,7 +441,7 @@ export default function ConsumerDashboard() {
             </div>
 
             <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              Live AI OCR Pipeline
+              Live AI OCR ✨
             </span>
           </div>
 

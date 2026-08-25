@@ -25,6 +25,9 @@ interface HistoryCheck {
   status: string;
   created_at: string;
   overall_confidence_score?: number;
+  is_flagged?: boolean;
+  flag_status?: string;
+  inspection_images?: { public_url: string }[];
 }
 
 export default function ConsumerHistoryPage() {
@@ -38,11 +41,11 @@ export default function ConsumerHistoryPage() {
         const supabase = createClient();
         const { data, error } = await supabase
           .from("inspections")
-          .select("id, case_number, product_name, brand, category, status, created_at, overall_confidence_score")
+          .select("id, case_number, product_name, brand, category, status, created_at, overall_confidence_score, is_flagged, flag_status, inspection_images(public_url)")
           .order("created_at", { ascending: false });
 
         if (!error && data) {
-          setHistory(data as HistoryCheck[]);
+          setHistory(data as unknown as HistoryCheck[]);
         }
       } catch (err) {
         console.error("Error fetching history:", err);
@@ -142,31 +145,50 @@ export default function ConsumerHistoryPage() {
                       {item.case_number}
                     </span>
 
-                    {isCompliant ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                        Looks Compliant
-                      </span>
-                    ) : isAttention ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
-                        <AlertTriangle className="h-3 w-3 text-amber-600" />
-                        Attention Needed
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
-                        <AlertOctagon className="h-3 w-3 text-rose-600" />
-                        Potential Issue
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {item.is_flagged && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                          Reported
+                        </span>
+                      )}
+                      {isCompliant ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          Looks Compliant
+                        </span>
+                      ) : isAttention ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                          <AlertTriangle className="h-3 w-3 text-amber-600" />
+                          Attention Needed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+                          <AlertOctagon className="h-3 w-3 text-rose-600" />
+                          Potential Issue
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
-                      {item.product_name || "Packaged Product"}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      {item.brand} • {item.category}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    {item.inspection_images?.[0]?.public_url && (
+                      <div className="h-12 w-12 rounded-xl bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.inspection_images[0].public_url}
+                          alt="thumbnail"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition line-clamp-1">
+                        {item.product_name || "Packaged Product"}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        {item.brand} • {item.category}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400 font-medium border-t border-slate-100">
