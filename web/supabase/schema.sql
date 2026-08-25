@@ -1,6 +1,0 @@
--- =========================================================================
--- PackCheck — Supabase Schema Index
--- NOTE: Schema migrations are managed under `supabase/migrations/`
--- See: supabase/migrations/20260825000000_initial_packcheck_schema.sql
--- Seed data: supabase/seed.sql
--- =========================================================================

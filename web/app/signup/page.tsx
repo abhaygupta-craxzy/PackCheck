@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   ShieldCheck,
   Building2,
@@ -50,13 +51,11 @@ function SignupForm() {
       setFullName("Priya Verma");
       setOrgOrCity("Pune, Maharashtra");
       setEmail("priya.verma@gmail.com");
-      setPassword("ConsumerSecure2026!");
     } else {
       setRole("investigator");
       setFullName("Officer R. Sharma");
-      setOrgOrCity("Legal Metrology Dept, Enforcement Cell");
+      setOrgOrCity("Legal Metrology Dept, Maharashtra");
       setEmail("officer.sharma@legalmetrology.gov.in");
-      setPassword("GovEnforce2026#!");
     }
   }, [queryRole]);
 
@@ -64,7 +63,7 @@ function SignupForm() {
     setRole(newRole);
     if (newRole === "investigator") {
       setFullName("Officer R. Sharma");
-      setOrgOrCity("Legal Metrology Dept, Enforcement Cell");
+      setOrgOrCity("Legal Metrology Dept, Maharashtra");
       setEmail("officer.sharma@legalmetrology.gov.in");
     } else {
       setFullName("Priya Verma");
@@ -76,38 +75,114 @@ function SignupForm() {
   const getPasswordStrength = (pass: string) => {
     if (!pass) return { score: 0, label: "Enter password", color: "bg-slate-200" };
     if (pass.length < 6) return { score: 30, label: "Weak", color: "bg-rose-500" };
-    if (pass.length < 10) return { score: 65, label: "Good", color: "bg-amber-500" };
+    if (pass.length < 8) return { score: 65, label: "Good", color: "bg-amber-500" };
     return { score: 100, label: "Strong & Regulatory-compliant", color: "bg-emerald-500" };
   };
 
   const strength = getPasswordStrength(password);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setStatusMessage(`Creating ${role === "investigator" ? "Investigator Officer Profile" : "Citizen Consumer Account"}...`);
 
-    setTimeout(() => {
-      if (role === "investigator") {
-        router.push("/investigator");
-      } else {
-        router.push("/consumer");
+    if (password.length < 8) {
+      setStatusMessage(null);
+      alert("Password must contain at least 8 characters.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    setStatusMessage(
+      `Creating ${
+        role === "investigator"
+          ? "Investigator Officer Profile"
+          : "Citizen Consumer Account"
+      }...`
+    );
+
+    try {
+      const supabase = createClient();
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            role,
+            organization_or_city: orgOrCity.trim(),
+          },
+        },
+      });
+
+      if (error) {
+        throw error;
       }
-    }, 600);
+
+      if (!data.user) {
+        throw new Error("Account could not be created.");
+      }
+
+      // If email confirmation is required by Supabase
+      if (!data.session) {
+        setStatusMessage(
+          "Account created! Please check your email inbox to confirm your account."
+        );
+        return;
+      }
+
+      // Upsert profile in public.profiles table
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: data.user.id,
+            email: email.trim(),
+            full_name: fullName.trim(),
+            role,
+            designation: role === "investigator" ? "Legal Metrology Inspector" : "Consumer",
+          },
+          {
+            onConflict: "id",
+          }
+        );
+
+      if (profileError) {
+        console.error("Profile sync notice:", profileError);
+      }
+
+      setStatusMessage("Account created successfully. Opening PackCheck...");
+
+      router.push(role === "investigator" ? "/investigator" : "/consumer");
+    } catch (error) {
+      console.error("PackCheck signup error:", error);
+
+      setStatusMessage(null);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to create your account.";
+
+      alert(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleQuickRegister = (targetRole: Role) => {
+  const handleQuickRegisterPrefill = (targetRole: Role) => {
     setRole(targetRole);
-    setIsLoading(true);
-    setStatusMessage(`Instant demo registration as ${targetRole === "investigator" ? "Lead Investigator" : "Consumer"}...`);
-
-    setTimeout(() => {
-      if (targetRole === "investigator") {
-        router.push("/investigator");
-      } else {
-        router.push("/consumer");
-      }
-    }, 450);
+    if (targetRole === "investigator") {
+      setFullName("Officer R. Sharma");
+      setOrgOrCity("Legal Metrology Dept, Maharashtra");
+      setEmail("officer.sharma@legalmetrology.gov.in");
+      setPassword("GovOfficer#2026");
+    } else {
+      setFullName("Priya Verma");
+      setOrgOrCity("Pune, Maharashtra");
+      setEmail("priya.verma@gmail.com");
+      setPassword("CitizenSafe#2026");
+    }
   };
 
   return (
@@ -119,11 +194,9 @@ function SignupForm() {
         ========================================================== */}
         <section className="relative hidden overflow-hidden lg:flex border-r border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40">
 
-          {/* Ambient radial orbs */}
           <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-300/10 blur-3xl" />
           <div className="absolute top-1/2 -right-24 h-96 w-96 rounded-full bg-gradient-to-br from-blue-400/15 to-indigo-400/10 blur-3xl" />
 
-          {/* Grid pattern */}
           <div
             className="absolute inset-0 opacity-[0.035]"
             style={{
@@ -168,7 +241,7 @@ function SignupForm() {
               </h1>
 
               <p className="mt-5 max-w-lg text-sm leading-relaxed text-slate-600 font-medium">
-                Create your verified inspector credentials or public consumer access account to evaluate packaged commodity labels with instant rule verification.
+                Create your verified inspector credentials or citizen consumer access account to evaluate packaged commodity labels with instant rule verification.
               </p>
 
               {/* Benefits Checklist */}
@@ -194,33 +267,33 @@ function SignupForm() {
                 </div>
               </div>
 
-              {/* Fast Evaluation Demo Registration */}
+              {/* Fast Demo Pre-fill */}
               <div className="mt-8 p-4 rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-xs">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-amber-500" />
-                    Hackathon Jury 1-Click Fast Register:
+                    Jury Demo Quick Pre-fill:
                   </span>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    Instant
+                    Pre-fill
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <button
                     type="button"
-                    onClick={() => handleQuickRegister("investigator")}
+                    onClick={() => handleQuickRegisterPrefill("investigator")}
                     className="p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-left text-xs font-bold text-blue-950 transition cursor-pointer flex items-center justify-between"
                   >
-                    <span>🛡️ Quick Investigator</span>
+                    <span>🛡️ Fill Investigator</span>
                     <ArrowRight className="h-3.5 w-3.5 text-blue-600" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleQuickRegister("consumer")}
+                    onClick={() => handleQuickRegisterPrefill("consumer")}
                     className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-left text-xs font-bold text-emerald-950 transition cursor-pointer flex items-center justify-between"
                   >
-                    <span>👤 Quick Consumer</span>
+                    <span>👤 Fill Consumer</span>
                     <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
                   </button>
                 </div>
@@ -237,7 +310,7 @@ function SignupForm() {
         </section>
 
         {/* =========================================================
-            RIGHT — SIGN UP FORM (COLORFUL & POLISHED LIGHT THEME)
+            RIGHT — SIGN UP FORM (REAL SUPABASE AUTH)
         ========================================================== */}
         <section className="flex min-h-screen items-center justify-center bg-white px-6 py-10 sm:px-12 relative overflow-hidden">
 
@@ -387,7 +460,7 @@ function SignupForm() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a strong password"
+                    placeholder="Create a password (min. 8 characters)"
                     className="h-10.5 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-11 text-xs font-semibold text-slate-900 outline-none placeholder:text-slate-400 shadow-2xs transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
                   <button

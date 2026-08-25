@@ -367,24 +367,57 @@ for each row execute function public.set_updated_at();
 
 -- Trigger to automatically create profile entry when new user signs up in auth.users
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger
+language plpgsql
+security definer set search_path = public, auth
+as $$
 declare
   user_role public.user_role_type;
   user_full_name text;
+  raw_role text;
 begin
-  user_role := coalesce((new.raw_user_meta_data->>'role')::public.user_role_type, 'consumer');
-  user_full_name := coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1));
+  raw_role := lower(coalesce(new.raw_user_meta_data->>'role', 'consumer'));
+  
+  user_role := case raw_role
+    when 'investigator' then 'investigator'::public.user_role_type
+    when 'supervisor'   then 'supervisor'::public.user_role_type
+    when 'admin'        then 'admin'::public.user_role_type
+    else                     'consumer'::public.user_role_type
+  end;
 
-  insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, user_full_name, user_role)
+  user_full_name := coalesce(
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'name',
+    split_part(new.email, '@', 1)
+  );
+
+  insert into public.profiles (
+    id,
+    email,
+    full_name,
+    role,
+    designation,
+    badge_number
+  )
+  values (
+    new.id,
+    new.email,
+    user_full_name,
+    user_role,
+    case when user_role = 'investigator' then 'Legal Metrology Inspector' else 'Consumer' end,
+    new.raw_user_meta_data->>'badge_number'
+  )
   on conflict (id) do update
   set email = excluded.email,
-      full_name = coalesce(public.profiles.full_name, excluded.full_name);
+      full_name = coalesce(public.profiles.full_name, excluded.full_name),
+      role = coalesce(public.profiles.role, excluded.role),
+      updated_at = timezone('utc'::text, now());
 
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
@@ -453,6 +486,10 @@ $$ language sql stable security definer;
 create policy "Users can read own profile"
   on public.profiles for select
   using (auth.uid() = id);
+
+create policy "Users can insert own profile"
+  on public.profiles for insert
+  with check (auth.uid() = id);
 
 create policy "Users can update own profile"
   on public.profiles for update

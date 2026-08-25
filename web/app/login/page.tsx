@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   ShieldCheck,
   ScanSearch,
@@ -16,11 +17,9 @@ import {
   EyeOff,
   ChevronLeft,
   Sparkles,
-  Check,
   Loader2,
   Award,
   Zap,
-  Scale,
   FileCheck2,
 } from "lucide-react";
 
@@ -35,7 +34,7 @@ function LoginForm() {
     queryRole === "consumer" ? "consumer" : "investigator"
   );
   const [email, setEmail] = useState("officer.sharma@legalmetrology.gov.in");
-  const [password, setPassword] = useState("••••••••••••");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loginMessage, setLoginMessage] = useState<string | null>(null);
@@ -59,32 +58,113 @@ function LoginForm() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setLoginMessage(`Authenticating as ${role === "investigator" ? "Legal Metrology Enforcement Officer" : "Citizen / Consumer"}...`);
-
-    setTimeout(() => {
-      if (role === "investigator") {
-        router.push("/investigator");
-      } else {
-        router.push("/consumer");
-      }
-    }, 600);
-  };
-
   const handleQuickLogin = (targetRole: Role) => {
     setRole(targetRole);
-    setIsLoading(true);
-    setLoginMessage(`Launching ${targetRole === "investigator" ? "Investigator Command Center" : "Consumer Package Check"}...`);
 
-    setTimeout(() => {
-      if (targetRole === "investigator") {
-        router.push("/investigator");
-      } else {
-        router.push("/consumer");
+    if (targetRole === "investigator") {
+      setEmail("officer.sharma@legalmetrology.gov.in");
+      setPassword("");
+    } else {
+      setEmail("priya.verma@gmail.com");
+      setPassword("");
+    }
+
+    setLoginMessage(
+      `${targetRole === "investigator" ? "Investigator" : "Consumer"} demo profile selected. Enter your password to authenticate.`
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setIsLoading(true);
+    setLoginMessage(
+      `Authenticating as ${
+        role === "investigator"
+          ? "Legal Metrology Enforcement Officer"
+          : "Citizen / Consumer"
+      }...`
+    );
+
+    try {
+      const supabase = createClient();
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        throw error;
       }
-    }, 450);
+
+      if (!data.user) {
+        throw new Error("Authentication succeeded but no user was returned.");
+      }
+
+      // Read the user's PackCheck profile/role
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const actualRole = profile?.role;
+
+      // Database profile is the source of truth
+      if (actualRole === "investigator" || actualRole === "supervisor" || actualRole === "admin") {
+        setLoginMessage("Authentication successful. Opening Investigator Workspace...");
+        router.push("/investigator");
+      } else if (actualRole === "consumer") {
+        setLoginMessage("Authentication successful. Opening Consumer Check...");
+        router.push("/consumer");
+      } else {
+        // Fallback to role from user metadata or UI if profile row is pending creation
+        const metaRole = data.user.user_metadata?.role || role;
+        if (metaRole === "investigator") {
+          router.push("/investigator");
+        } else {
+          router.push("/consumer");
+        }
+      }
+    } catch (error) {
+      console.error("PackCheck login error:", error);
+
+      setLoginMessage(null);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to sign in. Please check your credentials.";
+
+      alert(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        console.error("Google OAuth error:", error);
+        alert(error.message);
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to initialize Google authentication.");
+    }
   };
 
   return (
@@ -92,16 +172,13 @@ function LoginForm() {
       <div className="grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
 
         {/* =========================================================
-            LEFT — VIBRANT BRAND / PRODUCT SHOWCASE SIDE (LIGHT + COLORFUL)
+            LEFT — BRAND / SHOWCASE SIDE (LIGHT + VIBRANT)
         ========================================================== */}
         <section className="relative hidden overflow-hidden lg:flex border-r border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-blue-50/40">
 
-          {/* Vibrant colorful background ambient radial orbs */}
           <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-300/10 blur-3xl" />
           <div className="absolute top-1/2 -right-24 h-96 w-96 rounded-full bg-gradient-to-br from-blue-400/15 to-indigo-400/10 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-gradient-to-tr from-amber-300/15 to-rose-300/10 blur-3xl" />
 
-          {/* Delicate grid pattern */}
           <div
             className="absolute inset-0 opacity-[0.035]"
             style={{
@@ -113,7 +190,7 @@ function LoginForm() {
 
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
 
-            {/* Top Brand Nav */}
+            {/* Logo */}
             <Link href="/" className="flex items-center gap-3 w-fit group">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 shadow-md shadow-emerald-600/30 text-white transition-transform duration-300 group-hover:scale-105">
                 <ShieldCheck className="h-6 w-6" />
@@ -129,10 +206,9 @@ function LoginForm() {
               </div>
             </Link>
 
-            {/* Center Content Showcase */}
+            {/* Center Content */}
             <div className="max-w-xl my-auto py-8">
 
-              {/* SIH Pill with rainbow border */}
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 px-3.5 py-1.5 text-xs font-bold text-emerald-900 shadow-xs">
                 <Award className="h-4 w-4 text-emerald-600" />
                 <span>Smart India Hackathon 2026</span>
@@ -151,9 +227,8 @@ function LoginForm() {
                 AI-assisted extraction of mandatory packaged commodity declarations backed by deterministic Legal Metrology Rules (PCR 2011) with forensic evidence traceability.
               </p>
 
-              {/* 3-Step Colorful Flow Cards */}
+              {/* Flow Cards */}
               <div className="mt-8 flex items-center gap-3">
-
                 <FlowCard
                   icon={<ScanSearch className="h-5 w-5 text-blue-600" />}
                   bg="bg-blue-50 border-blue-200/80"
@@ -178,18 +253,17 @@ function LoginForm() {
                   title="03 Evidence"
                   text="Investigator Review"
                 />
-
               </div>
 
-              {/* Quick Evaluation Demo Roles Box */}
+              {/* Fast Evaluation Demo Box */}
               <div className="mt-8 p-4 rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-xs">
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800">
                     <Sparkles className="h-4 w-4 text-amber-500" />
-                    <span>Instant Jury Evaluation One-Click Access:</span>
+                    <span>Instant Jury Demo Credentials:</span>
                   </div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    Preloaded Demo
+                    Pre-fill
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
@@ -246,26 +320,19 @@ function LoginForm() {
         </section>
 
         {/* =========================================================
-            RIGHT — SIGN IN CARD (COLORFUL & POLISHED LIGHT THEME)
+            RIGHT — SIGN IN CARD (REAL SUPABASE AUTH)
         ========================================================== */}
         <section className="flex min-h-screen items-center justify-center bg-white px-6 py-10 sm:px-12 relative overflow-hidden">
-
-          {/* Soft ambient tint in corner */}
-          <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-blue-100/50 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-100/50 blur-3xl pointer-events-none" />
 
           <div className="w-full max-w-md relative z-10">
 
             {/* Mobile logo */}
             <div className="mb-8 flex items-center justify-between lg:hidden">
               <Link href="/" className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md">
                   <ShieldCheck className="h-6 w-6" />
                 </div>
-
-                <span className="text-xl font-bold text-slate-900">
-                  PackCheck
-                </span>
+                <span className="text-xl font-bold text-slate-900">PackCheck</span>
               </Link>
 
               <Link
@@ -289,13 +356,11 @@ function LoginForm() {
               </h2>
 
               <p className="mt-1.5 text-xs font-medium text-slate-500">
-                Choose your role to access your personalized Legal Metrology workspace.
+                Enter your credentials to access the Legal Metrology platform.
               </p>
             </div>
 
-            {/* =====================================================
-                ROLE SELECTOR (WITH RICH VIBRANT COLORS)
-            ====================================================== */}
+            {/* Role Selector */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2.5">
                 <p className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
@@ -333,7 +398,6 @@ function LoginForm() {
                       <p className="text-sm font-extrabold text-slate-900">
                         Investigator
                       </p>
-
                       <p className="mt-0.5 text-[11px] font-semibold text-blue-700">
                         Inspect & audit
                       </p>
@@ -370,7 +434,6 @@ function LoginForm() {
                       <p className="text-sm font-extrabold text-slate-900">
                         Consumer
                       </p>
-
                       <p className="mt-0.5 text-[11px] font-semibold text-emerald-700">
                         Check a package
                       </p>
@@ -385,68 +448,27 @@ function LoginForm() {
               </div>
             </div>
 
-            {/* Role Context Pill */}
-            <div
-              className={`mb-6 rounded-2xl border p-3.5 transition-all duration-200 ${
-                role === "investigator"
-                  ? "border-blue-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 text-blue-950 shadow-2xs"
-                  : "border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 text-emerald-950 shadow-2xs"
-              }`}
-            >
-              <div className="flex gap-3">
-                <div className="mt-0.5">
-                  {role === "investigator" ? (
-                    <div className="h-7 w-7 rounded-lg bg-blue-600/15 text-blue-700 flex items-center justify-center font-bold">
-                      <Building2 className="h-4 w-4" />
-                    </div>
-                  ) : (
-                    <div className="h-7 w-7 rounded-lg bg-emerald-600/15 text-emerald-700 flex items-center justify-center font-bold">
-                      <UserRound className="h-4 w-4" />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-xs font-extrabold">
-                    {role === "investigator"
-                      ? "Enforcement Operations Workspace"
-                      : "Citizen Package Verification"}
-                  </p>
-
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600 font-medium">
-                    {role === "investigator"
-                      ? "Review AI OCR findings, run deterministic PCR 2011 rule evaluations, and prepare formal inspection dockets."
-                      : "Scan packaged commodity labels to verify MRP, Net Quantity, Expiry date, and consumer grievance contact details."}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* =====================================================
-                GOOGLE SINGLE SIGN-ON (MOCK)
-            ====================================================== */}
+            {/* Google Login Button */}
             <button
               type="button"
-              onClick={() => handleQuickLogin(role)}
+              onClick={handleGoogleLogin}
               disabled={isLoading}
               className="flex h-11 w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white text-xs font-bold text-slate-800 hover:bg-slate-50 hover:border-slate-400 shadow-xs hover:shadow-sm transition cursor-pointer disabled:opacity-50"
             >
               <GoogleIcon />
-              <span>Continue with Government / Google SSO</span>
+              <span>Continue with Google</span>
             </button>
 
             {/* Divider */}
             <div className="my-5 flex items-center gap-4">
               <div className="h-px flex-1 bg-slate-200" />
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                Or with official credentials
+                Or with email &amp; password
               </span>
               <div className="h-px flex-1 bg-slate-200" />
             </div>
 
-            {/* =====================================================
-                EMAIL & PASSWORD FORM
-            ====================================================== */}
+            {/* Email & Password Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
 
               <div>
@@ -476,8 +498,8 @@ function LoginForm() {
 
                   <button
                     type="button"
-                    onClick={() => alert("Password reset link has been dispatched to your verified email.")}
-                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition"
+                    onClick={() => alert("Password reset link has been dispatched to your email address.")}
+                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -500,18 +522,14 @@ function LoginForm() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
               {loginMessage && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-900 flex items-center gap-2.5 animate-in fade-in">
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-900 flex items-center gap-2.5 animate-in fade-in">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                   {loginMessage}
                 </div>
               )}
@@ -573,10 +591,6 @@ export default function LoginPage() {
   );
 }
 
-/* ===============================================================
-   FLOW CARD (COLORFUL LIGHT THEME)
-================================================================ */
-
 function FlowCard({
   icon,
   bg,
@@ -593,46 +607,19 @@ function FlowCard({
       <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-2xs">
         {icon}
       </div>
-
-      <p className="text-xs font-extrabold text-slate-900">
-        {title}
-      </p>
-
-      <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
-        {text}
-      </p>
+      <p className="text-xs font-extrabold text-slate-900">{title}</p>
+      <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{text}</p>
     </div>
   );
 }
 
-/* ===============================================================
-   GOOGLE ICON
-================================================================ */
-
 function GoogleIcon() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        fill="#4285F4"
-        d="M21.35 12.23c0-.79-.07-1.55-.23-2.27H12v4.3h5.23a4.47 4.47 0 0 1-1.94 2.93v2.43h3.14c1.84-1.69 2.92-4.18 2.92-7.39Z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.43c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.51A9.75 9.75 0 0 0 12 21.75Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M6.54 13.85A5.86 5.86 0 0 1 6.23 12c0-.64.11-1.26.31-1.85V7.64H3.3A9.76 9.76 0 0 0 2.25 12c0 1.57.38 3.05 1.05 4.36l3.24-2.51Z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 6.12c1.43 0 2.72.49 3.73 1.45l2.8-2.8C16.84 3.16 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.7 5.39l3.24 2.51C7.31 7.84 9.46 6.12 12 6.12Z"
-      />
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M21.35 12.23c0-.79-.07-1.55-.23-2.27H12v4.3h5.23a4.47 4.47 0 0 1-1.94 2.93v2.43h3.14c1.84-1.69 2.92-4.18 2.92-7.39Z" />
+      <path fill="#34A853" d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.43c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.51A9.75 9.75 0 0 0 12 21.75Z" />
+      <path fill="#FBBC05" d="M6.54 13.85A5.86 5.86 0 0 1 6.23 12c0-.64.11-1.26.31-1.85V7.64H3.3A9.76 9.76 0 0 0 2.25 12c0 1.57.38 3.05 1.05 4.36l3.24-2.51Z" />
+      <path fill="#EA4335" d="M12 6.12c1.43 0 2.72.49 3.73 1.45l2.8-2.8C16.84 3.16 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.7 5.39l3.24 2.51C7.31 7.84 9.46 6.12 12 6.12Z" />
     </svg>
   );
 }

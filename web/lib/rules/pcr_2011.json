@@ -1,0 +1,284 @@
+{
+  "version": "PCR-India-2026",
+  "act": "Legal Metrology (Packaged Commodities) Rules, 2011",
+  "gazette_ref": "GSO 2688(E)",
+  "effective_from": "2011-01-24",
+  "last_amended": "2022-09-12",
+  "last_amendment_ref": "GSR 711(E)",
+  "rules": [
+    {
+      "id": "PCR-2011-RULE-6-1-A",
+      "code": "R6(1)(a)",
+      "section": "Rule 6(1)(a)",
+      "title": "Generic or Common Name",
+      "description": "Every package shall bear the generic or common name of the commodity.",
+      "field": "generic_name",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "presence",
+      "evaluation": {
+        "pass_condition": "Field is present and non-empty",
+        "fail_condition": "Field is absent, empty, or not legible"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-B",
+      "code": "R6(1)(b)",
+      "section": "Rule 6(1)(b)",
+      "title": "Net Quantity",
+      "description": "Every package shall declare the net quantity in terms of standard units of weights or measures.",
+      "field": "net_quantity",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "presence_and_format",
+      "evaluation": {
+        "pass_condition": "Net quantity present with numeric value and recognized SI unit (g, kg, ml, L, nos, m, cm)",
+        "fail_condition": "Net quantity absent, not in standard units, or ambiguous",
+        "allowed_units": ["g", "gm", "gms", "kg", "ml", "mL", "L", "l", "litre", "liter", "nos", "no.", "m", "cm", "mm"]
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-C",
+      "code": "R6(1)(c)",
+      "section": "Rule 6(1)(c)",
+      "title": "Manufacturer / Packer / Importer Name and Address",
+      "description": "Name and complete address of the manufacturer or packer or importer, as applicable.",
+      "field": "manufacturer_name",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "presence",
+      "evaluation": {
+        "pass_condition": "Name and address of manufacturer, packer, or importer present",
+        "fail_condition": "Name or address absent or incomplete"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-D",
+      "code": "R6(1)(d)",
+      "section": "Rule 6(1)(d)",
+      "title": "Month and Year of Manufacture / Packing / Import",
+      "description": "Month and year in which the commodity is manufactured, packed, or imported shall be declared.",
+      "field": "manufacturing_date",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "presence_and_format",
+      "evaluation": {
+        "pass_condition": "Month and year present in any standard format (MM/YYYY, Mon YYYY, MM-YYYY, etc.)",
+        "fail_condition": "Manufacturing date absent or only year without month present",
+        "note": "For products with expiry date less than 3 months, day-month-year may be required"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-E",
+      "code": "R6(1)(e)",
+      "section": "Rule 6(1)(e)",
+      "title": "Maximum Retail Price (MRP)",
+      "description": "Maximum retail price (inclusive of all taxes) at which the commodity in packaged form may be sold to the ultimate consumer.",
+      "field": "mrp",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "presence_and_format",
+      "evaluation": {
+        "pass_condition": "MRP declared with ₹ or Rs. prefix, inclusive of all taxes, numeric value > 0",
+        "fail_condition": "MRP absent, not in rupees, or does not state inclusive of all taxes",
+        "required_prefix": ["₹", "Rs.", "Rs", "INR", "MRP"],
+        "must_include_tax_statement": true
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-F",
+      "code": "R6(1)(f)",
+      "section": "Rule 6(1)(f)",
+      "title": "Consumer Care Details",
+      "description": "Name, address, and telephone number of the person who can be contacted in case of consumer complaint.",
+      "field": "consumer_care_name",
+      "required_for": ["all"],
+      "critical": false,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "presence",
+      "evaluation": {
+        "pass_condition": "Consumer care contact (name + address OR phone/email) is present",
+        "fail_condition": "Consumer care details entirely absent"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-G",
+      "code": "R6(1)(g)",
+      "section": "Rule 6(1)(g)",
+      "title": "Country of Origin (for imported goods)",
+      "description": "Country of origin of commodity for imported commodities.",
+      "field": "country_of_origin",
+      "required_for": ["imported_goods"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "conditional_presence",
+      "evaluation": {
+        "pass_condition": "Country of origin stated, OR product is domestically manufactured",
+        "fail_condition": "Imported product but country of origin absent",
+        "applicability_note": "Only required if product is imported"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-H",
+      "code": "R6(1)(h)",
+      "section": "Rule 6(1)(h)",
+      "title": "Unit Sale Price (Multi-piece packages)",
+      "description": "For packages containing multiple pieces, the retail price of each piece shall be declared.",
+      "field": "unit_sale_price",
+      "required_for": ["multi_unit_packages"],
+      "critical": false,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "conditional_presence",
+      "evaluation": {
+        "pass_condition": "Unit sale price declared for each piece, OR package contains only one unit",
+        "fail_condition": "Multi-piece package without unit sale price",
+        "applicability_note": "Only for packages containing more than one consumer unit"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-6-1-I",
+      "code": "R6(1)(i)",
+      "section": "Rule 6(1)(i)",
+      "title": "Expiry Date / Best Before Date",
+      "description": "Best before or expiry date for commodities with shelf life up to 30 months shall be declared.",
+      "field": "expiry_date",
+      "required_for": ["perishable_goods", "packaged_food", "cosmetics"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "conditional_presence",
+      "evaluation": {
+        "pass_condition": "Expiry or best before date present in recognized format",
+        "fail_condition": "Perishable/food/cosmetic product without expiry or best before date",
+        "recognized_prefixes": ["Best before", "Use by", "Expiry", "Exp.", "BB:", "Use before"]
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-7-NUMERAL-SIZE",
+      "code": "R7",
+      "section": "Rule 7",
+      "title": "Numeral Size for Net Quantity Declaration",
+      "description": "The declaration of net quantity shall be in numerals of specific minimum height based on package principal display panel area.",
+      "field": "net_quantity",
+      "required_for": ["all"],
+      "critical": false,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "font_size",
+      "evaluation": {
+        "pass_condition": "Numerals meet minimum height for declared package size",
+        "fail_condition": "Numerals too small for package display panel area",
+        "note": "Physical measurement required - cannot be determined from image alone",
+        "requires_physical_measurement": true,
+        "thresholds": [
+          {"pdp_area_cm2_max": 100, "min_numeral_height_mm": 2},
+          {"pdp_area_cm2_max": 200, "min_numeral_height_mm": 3},
+          {"pdp_area_cm2_max": 500, "min_numeral_height_mm": 4},
+          {"pdp_area_cm2_min": 500, "min_numeral_height_mm": 6}
+        ]
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-8-PLACEMENT",
+      "code": "R8",
+      "section": "Rule 8",
+      "title": "Placement of Net Quantity Declaration",
+      "description": "The declaration of net quantity shall be on the principal display panel, in the lower third portion.",
+      "field": "net_quantity",
+      "required_for": ["all"],
+      "critical": false,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "placement",
+      "evaluation": {
+        "pass_condition": "Net quantity visible and in lower portion of principal display panel",
+        "fail_condition": "Net quantity hidden, obscured, or not on principal display panel",
+        "note": "Approximate placement assessment only from image"
+      }
+    },
+    {
+      "id": "PCR-2011-RULE-9-MANNER",
+      "code": "R9",
+      "section": "Rule 9",
+      "title": "Manner of Expressing Net Quantity",
+      "description": "Net quantity in solid shall be by weight, liquid by volume, otherwise by count.",
+      "field": "net_quantity",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "unit_appropriateness",
+      "evaluation": {
+        "pass_condition": "Net quantity unit matches product state (solid → weight, liquid → volume, others → count)",
+        "fail_condition": "Wrong type of unit used (e.g., volume for solid product)",
+        "solid_units": ["g", "gm", "gms", "kg"],
+        "liquid_units": ["ml", "mL", "L", "l", "litre", "liter"],
+        "count_units": ["nos", "no.", "pcs", "pieces", "tablets", "capsules", "sheets"]
+      }
+    },
+    {
+      "id": "PCR-2011-SCHEDULE-1-MPE",
+      "code": "Sch-1",
+      "section": "First Schedule",
+      "title": "Maximum Permissible Error (MPE) — Net Quantity",
+      "description": "The net quantity of the commodity shall not be less than the declared quantity minus the applicable Maximum Permissible Error.",
+      "field": "net_quantity",
+      "required_for": ["all"],
+      "critical": true,
+      "penalty_section": "Section 36(1), Legal Metrology Act 2009",
+      "check_type": "physical_measurement",
+      "evaluation": {
+        "pass_condition": "Measured net quantity ≥ declared quantity - MPE",
+        "fail_condition": "Measured net quantity < declared quantity - MPE",
+        "requires_physical_measurement": true,
+        "note": "Cannot be determined from image alone. Physical weighing/measurement required.",
+        "mpe_table": [
+          {"range_min_g": 0, "range_max_g": 50, "mpe_percent": 9},
+          {"range_min_g": 50, "range_max_g": 100, "mpe_percent": 4.5},
+          {"range_min_g": 100, "range_max_g": 200, "mpe_percent": 4.5},
+          {"range_min_g": 200, "range_max_g": 300, "mpe_percent": 9, "mpe_g": 9},
+          {"range_min_g": 300, "range_max_g": 500, "mpe_percent": 3},
+          {"range_min_g": 500, "range_max_g": 1000, "mpe_percent": 3},
+          {"range_min_g": 1000, "range_max_g": 10000, "mpe_percent": 1.5},
+          {"range_min_g": 10000, "mpe_g": 150}
+        ]
+      }
+    }
+  ],
+  "product_categories": {
+    "packaged_food": {
+      "label": "Packaged Food",
+      "additional_requirements": ["fssai_license", "ingredients_list", "nutritional_info", "expiry_date"],
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-6-1-I", "PCR-2011-RULE-7-NUMERAL-SIZE", "PCR-2011-RULE-8-PLACEMENT", "PCR-2011-RULE-9-MANNER", "PCR-2011-SCHEDULE-1-MPE"]
+    },
+    "edible_oils": {
+      "label": "Edible Oils",
+      "additional_requirements": ["fssai_license", "ingredients_list", "expiry_date"],
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-6-1-I", "PCR-2011-RULE-7-NUMERAL-SIZE", "PCR-2011-RULE-9-MANNER", "PCR-2011-SCHEDULE-1-MPE"]
+    },
+    "cosmetics": {
+      "label": "Cosmetics",
+      "additional_requirements": ["batch_number", "expiry_date"],
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-6-1-I", "PCR-2011-RULE-7-NUMERAL-SIZE", "PCR-2011-SCHEDULE-1-MPE"]
+    },
+    "beverages": {
+      "label": "Beverages",
+      "additional_requirements": ["fssai_license", "expiry_date"],
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-6-1-I", "PCR-2011-RULE-7-NUMERAL-SIZE", "PCR-2011-RULE-9-MANNER", "PCR-2011-SCHEDULE-1-MPE"]
+    },
+    "personal_care": {
+      "label": "Personal Care",
+      "additional_requirements": ["batch_number"],
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-7-NUMERAL-SIZE", "PCR-2011-SCHEDULE-1-MPE"]
+    },
+    "electronics": {
+      "label": "Electronics & Electrical Goods",
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-7-NUMERAL-SIZE"]
+    },
+    "other": {
+      "label": "Other Packaged Commodities",
+      "applicable_rules": ["PCR-2011-RULE-6-1-A", "PCR-2011-RULE-6-1-B", "PCR-2011-RULE-6-1-C", "PCR-2011-RULE-6-1-D", "PCR-2011-RULE-6-1-E", "PCR-2011-RULE-6-1-F", "PCR-2011-RULE-7-NUMERAL-SIZE", "PCR-2011-SCHEDULE-1-MPE"]
+    }
+  }
+}
