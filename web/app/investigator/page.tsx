@@ -758,10 +758,11 @@ export default function InvestigatorDashboard() {
                       </Link>
                       <Link
                         href={`/inspection/${selectedCase.id}/report`}
-                        className="flex items-center gap-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 px-3.5 py-1.5 text-xs font-bold text-white transition shadow-sm"
+                        style={{ color: "#ffffff" }}
+                        className="flex items-center gap-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 px-3.5 py-1.5 text-xs font-bold text-white !text-white transition shadow-sm"
                       >
-                        <FileText className="h-3.5 w-3.5" />
-                        <span>Export Report</span>
+                        <FileText className="h-3.5 w-3.5 text-white !text-white" style={{ color: "#ffffff" }} />
+                        <span className="text-white !text-white" style={{ color: "#ffffff" }}>Export Report</span>
                       </Link>
                     </div>
                   </div>

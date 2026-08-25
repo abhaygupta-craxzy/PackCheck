@@ -16,7 +16,6 @@ import {
   Eye,
   EyeOff,
   ChevronLeft,
-  Sparkles,
   Loader2,
   Award,
   Zap,
@@ -33,7 +32,7 @@ function LoginForm() {
   const [role, setRole] = useState<Role>(
     queryRole === "consumer" ? "consumer" : "investigator"
   );
-  const [email, setEmail] = useState("officer.sharma@legalmetrology.gov.in");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,36 +41,13 @@ function LoginForm() {
   useEffect(() => {
     if (queryRole === "consumer") {
       setRole("consumer");
-      setEmail("priya.verma@gmail.com");
     } else if (queryRole === "investigator") {
       setRole("investigator");
-      setEmail("officer.sharma@legalmetrology.gov.in");
     }
   }, [queryRole]);
 
   const handleRoleChange = (newRole: Role) => {
     setRole(newRole);
-    if (newRole === "investigator") {
-      setEmail("officer.sharma@legalmetrology.gov.in");
-    } else {
-      setEmail("priya.verma@gmail.com");
-    }
-  };
-
-  const handleQuickLogin = (targetRole: Role) => {
-    setRole(targetRole);
-
-    if (targetRole === "investigator") {
-      setEmail("officer.sharma@legalmetrology.gov.in");
-      setPassword("");
-    } else {
-      setEmail("priya.verma@gmail.com");
-      setPassword("");
-    }
-
-    setLoginMessage(
-      `${targetRole === "investigator" ? "Investigator" : "Consumer"} demo profile selected. Enter your password to authenticate.`
-    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,15 +78,15 @@ function LoginForm() {
         throw new Error("Authentication succeeded but no user was returned.");
       }
 
-      // Read the user's PackCheck profile/role
+      // Read the user's PackCheck profile/role using the authenticated user's UUID
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, designation")
         .eq("id", data.user.id)
         .maybeSingle();
 
       if (profileError) {
-        throw profileError;
+        console.warn("Profile fetch notice:", profileError.message);
       }
 
       const actualRole = profile?.role;
@@ -123,17 +99,18 @@ function LoginForm() {
         setLoginMessage("Authentication successful. Opening Consumer Check...");
         router.push("/consumer");
       } else {
-        // Fallback to role from user metadata or UI if profile row is pending creation
+        // Fallback to role from user metadata or UI selection if profile row is pending
         const metaRole = data.user.user_metadata?.role || role;
         if (metaRole === "investigator") {
+          setLoginMessage("Authentication successful. Opening Investigator Workspace...");
           router.push("/investigator");
         } else {
+          setLoginMessage("Authentication successful. Opening Consumer Check...");
           router.push("/consumer");
         }
       }
     } catch (error) {
       console.error("PackCheck login error:", error);
-
       setLoginMessage(null);
 
       const message =
@@ -162,8 +139,9 @@ function LoginForm() {
         console.error("Google OAuth error:", error);
         alert(error.message);
       }
-    } catch (err: any) {
-      alert(err.message || "Failed to initialize Google authentication.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to initialize Google authentication.";
+      alert(msg);
     }
   };
 
@@ -209,12 +187,12 @@ function LoginForm() {
             {/* Center Content */}
             <div className="max-w-xl my-auto py-8">
 
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 px-3.5 py-1.5 text-xs font-bold text-emerald-900 shadow-xs">
+              {/* <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 px-3.5 py-1.5 text-xs font-bold text-emerald-900 shadow-xs">
                 <Award className="h-4 w-4 text-emerald-600" />
-                <span>Smart India Hackathon 2026</span>
+                {/* <span>Smart India Hackathon 2026</span> */}
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-slate-500 font-semibold">PS 26034</span>
-              </div>
+                {/* <span className="text-slate-500 font-semibold">PS 26034</span> */}
+              {/* </div> */} 
 
               <h1 className="text-4xl font-black leading-[1.12] tracking-tight text-slate-900 xl:text-5xl">
                 Turn package labels into{" "}
@@ -255,53 +233,6 @@ function LoginForm() {
                 />
               </div>
 
-              {/* Fast Evaluation Demo Box */}
-              <div className="mt-8 p-4 rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-xs">
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800">
-                    <Sparkles className="h-4 w-4 text-amber-500" />
-                    <span>Instant Jury Demo Credentials:</span>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    Pre-fill
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin("investigator")}
-                    className="group text-left p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200/90 text-xs text-blue-950 font-bold transition-all duration-200 flex items-center justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                        <Building2 className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="font-extrabold text-blue-900 leading-none">Lead Investigator</p>
-                        <p className="text-[10px] text-blue-700 font-medium mt-0.5">Officer Sharma</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-blue-600 transition-transform group-hover:translate-x-1" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickLogin("consumer")}
-                    className="group text-left p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border border-emerald-200/90 text-xs text-emerald-950 font-bold transition-all duration-200 flex items-center justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                        <UserRound className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="font-extrabold text-emerald-900 leading-none">Citizen Consumer</p>
-                        <p className="text-[10px] text-emerald-700 font-medium mt-0.5">Priya Verma</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-emerald-600 transition-transform group-hover:translate-x-1" />
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Bottom Credits */}
@@ -484,7 +415,7 @@ function LoginForm() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={role === "investigator" ? "officer@legalmetrology.gov.in" : "you@example.com"}
+                    placeholder={role === "investigator" ? "officer@packcheck.in" : "user@packcheck.in"}
                     className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-xs font-semibold text-slate-900 outline-none placeholder:text-slate-400 shadow-2xs transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
                 </div>
@@ -498,8 +429,8 @@ function LoginForm() {
 
                   <button
                     type="button"
-                    onClick={() => alert("Password reset link has been dispatched to your email address.")}
-                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
+                    onClick={() => alert("Password reset functionality is connected to your registered email.")}
+                    className="text-[11px] font-bold text-blue-700 hover:text-blue-800 transition cursor-pointer"
                   >
                     Forgot password?
                   </button>
@@ -513,81 +444,75 @@ function LoginForm() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
+                    placeholder="Enter your password"
                     className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-11 text-xs font-semibold text-slate-900 outline-none placeholder:text-slate-400 shadow-2xs transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   />
 
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer p-1"
+                    title={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
 
+              {/* Login Message */}
               {loginMessage && (
-                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-900 flex items-center gap-2.5 animate-in fade-in">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                  {loginMessage}
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 px-3.5 py-2.5 text-xs font-bold text-blue-800 animate-in fade-in">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-blue-600" />
+                  <span>{loginMessage}</span>
                 </div>
               )}
 
-              {/* Submit CTA Button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`group mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-extrabold text-white transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer disabled:opacity-60 ${
+                className={`flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-xs font-extrabold text-white shadow-md transition-all duration-200 cursor-pointer disabled:opacity-60 ${
                   role === "investigator"
-                    ? "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 shadow-blue-600/25"
-                    : "bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-600/25"
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-600/25 hover:shadow-blue-600/40 hover:-translate-y-0.5"
+                    : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-600/25 hover:shadow-emerald-600/40 hover:-translate-y-0.5"
                 }`}
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Verifying Credentials...</span>
+                    <span>Verifying credentials...</span>
                   </>
                 ) : (
                   <>
-                    <span>Continue to {role === "investigator" ? "Investigator Workspace" : "Consumer Check"}</span>
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    <span>Sign in to {role === "investigator" ? "Enforcement Workspace" : "Consumer Portal"}</span>
+                    <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </button>
 
             </form>
 
-            {/* Create Account Link */}
-            <p className="mt-6 text-center text-xs font-medium text-slate-600">
-              Don&apos;t have an account yet?{" "}
+            {/* Sign up prompt */}
+            <div className="mt-8 text-center text-xs font-medium text-slate-500">
+              Don&apos;t have an official account?{" "}
               <Link
                 href={`/signup?role=${role}`}
-                className="font-extrabold text-emerald-700 hover:text-emerald-800 hover:underline transition"
+                className="font-bold text-blue-700 hover:text-blue-800 transition"
               >
-                Create an account
+                Create account
               </Link>
-            </p>
-
-            {/* Security Badge */}
-            <div className="mt-8 flex items-center justify-center gap-2 text-[11px] font-semibold text-slate-500">
-              <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              <span>Department of Consumer Affairs • Legal Metrology Division</span>
             </div>
 
           </div>
+
         </section>
+
       </div>
     </main>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center font-bold">Loading PackCheck Auth...</div>}>
-      <LoginForm />
-    </Suspense>
   );
 }
 
@@ -603,23 +528,47 @@ function FlowCard({
   text: string;
 }) {
   return (
-    <div className={`flex min-w-[105px] flex-col rounded-2xl border p-3.5 shadow-2xs hover:shadow-xs transition-transform hover:-translate-y-0.5 ${bg}`}>
-      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-2xs">
-        {icon}
-      </div>
-      <p className="text-xs font-extrabold text-slate-900">{title}</p>
-      <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{text}</p>
+    <div className={`flex-1 rounded-2xl border p-3.5 shadow-2xs backdrop-blur-xs ${bg}`}>
+      <div className="mb-2">{icon}</div>
+      <p className="text-xs font-black tracking-tight text-slate-900">{title}</p>
+      <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{text}</p>
     </div>
   );
 }
 
 function GoogleIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="#4285F4" d="M21.35 12.23c0-.79-.07-1.55-.23-2.27H12v4.3h5.23a4.47 4.47 0 0 1-1.94 2.93v2.43h3.14c1.84-1.69 2.92-4.18 2.92-7.39Z" />
-      <path fill="#34A853" d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.43c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.51A9.75 9.75 0 0 0 12 21.75Z" />
-      <path fill="#FBBC05" d="M6.54 13.85A5.86 5.86 0 0 1 6.23 12c0-.64.11-1.26.31-1.85V7.64H3.3A9.76 9.76 0 0 0 2.25 12c0 1.57.38 3.05 1.05 4.36l3.24-2.51Z" />
-      <path fill="#EA4335" d="M12 6.12c1.43 0 2.72.49 3.73 1.45l2.8-2.8C16.84 3.16 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.7 5.39l3.24 2.51C7.31 7.84 9.46 6.12 12 6.12Z" />
+    <svg className="h-4 w-4" viewBox="0 0 24 24">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+        fill="#EA4335"
+      />
     </svg>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

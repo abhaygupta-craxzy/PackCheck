@@ -1198,7 +1198,7 @@ function CTASection() {
             </p>
 
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="mt-6 flex flex-wrap items-center gap-4">
               <Link
                 href="/login?role=investigator"
                 className="pc-cta-button"
@@ -1214,10 +1214,10 @@ function CTASection() {
 
               <Link
                 href="/login?role=consumer"
-                className="pc-button-secondary inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/20 text-white hover:bg-white/10 transition"
+                className="inline-flex items-center justify-center gap-2 h-[51px] px-6 rounded-[14px] border border-white/30 bg-white/15 hover:bg-white/25 text-white font-bold text-[13px] shadow-sm backdrop-blur-xs transition-transform duration-200 hover:-translate-y-0.5"
               >
-                <ScanLine size={16} />
-                Check a package as Citizen
+                <ScanLine size={17} />
+                <span>Check a package as Citizen</span>
               </Link>
             </div>
 
