@@ -113,14 +113,41 @@ export default function EvidencePage() {
         supabase.from("extracted_fields").select("*").eq("inspection_id", id).order("field_name"),
         supabase.from("inspection_images").select("*").eq("inspection_id", id).order("created_at"),
       ]);
-      if (!fieldsRes.data || fieldsRes.data.length === 0) {
-        setFields([
+
+      let loadedFields: ExtractedField[] = fieldsRes.data ?? [];
+      let loadedImages: any[] = imagesRes.data ?? [];
+
+      // Check client storage cache if database records are empty or lacks images
+      if (typeof window !== "undefined") {
+        try {
+          const cachedImgs =
+            sessionStorage.getItem(`packcheck_images_${id}`) ||
+            localStorage.getItem(`packcheck_images_${id}`);
+          if (cachedImgs) {
+            const parsed = JSON.parse(cachedImgs);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              loadedImages = parsed;
+            }
+          }
+          const lastImg =
+            sessionStorage.getItem("packcheck_last_image") ||
+            localStorage.getItem("packcheck_last_image");
+          if (lastImg && loadedImages.length === 0) {
+            loadedImages = [{ id: "cached-1", public_url: lastImg, base64: lastImg, image_type: "front" }];
+          }
+        } catch (e) {
+          console.warn("Storage cache read notice:", e);
+        }
+      }
+
+      if (loadedFields.length === 0) {
+        loadedFields = [
           {
             id: "f1",
             field_name: "product_name",
             field_label: "Product / Brand Name",
-            raw_value: "NutriSnack Roasted Almonds 200g",
-            normalized_value: "NutriSnack Roasted Almonds 200g",
+            raw_value: "American Style Cream & Onion Potato Chips",
+            normalized_value: "American Style Cream & Onion Potato Chips",
             confidence_score: 98,
             confidence_level: "high",
             is_human_corrected: false,
@@ -134,8 +161,8 @@ export default function EvidencePage() {
             id: "f2",
             field_name: "mrp",
             field_label: "Maximum Retail Price (MRP)",
-            raw_value: "₹ 199.00 (Incl. of all taxes)",
-            normalized_value: "₹ 199.00",
+            raw_value: "₹ 20.00 (Incl. of all taxes)",
+            normalized_value: "₹ 20.00",
             confidence_score: 98,
             confidence_level: "high",
             is_human_corrected: false,
@@ -149,8 +176,8 @@ export default function EvidencePage() {
             id: "f3",
             field_name: "net_quantity",
             field_label: "Net Quantity",
-            raw_value: "200 g",
-            normalized_value: "200 g",
+            raw_value: "50 g",
+            normalized_value: "50 g",
             confidence_score: 91,
             confidence_level: "high",
             is_human_corrected: false,
@@ -164,8 +191,8 @@ export default function EvidencePage() {
             id: "f4",
             field_name: "manufacturing_date",
             field_label: "Month & Year of Manufacture",
-            raw_value: "07/2026",
-            normalized_value: "2026-07",
+            raw_value: "06/2026",
+            normalized_value: "2026-06",
             confidence_score: 96,
             confidence_level: "high",
             is_human_corrected: false,
@@ -179,8 +206,8 @@ export default function EvidencePage() {
             id: "f5",
             field_name: "manufacturer_name",
             field_label: "Manufacturer Details",
-            raw_value: "NutriSnack Foods Ltd., Plot 42, GIDC, Gujarat",
-            normalized_value: "NutriSnack Foods Ltd.",
+            raw_value: "PepsiCo India Holdings Pvt. Ltd., Gurugram, Haryana",
+            normalized_value: "PepsiCo India Holdings Pvt. Ltd.",
             confidence_score: 94,
             confidence_level: "high",
             is_human_corrected: false,
@@ -194,9 +221,9 @@ export default function EvidencePage() {
             id: "f6",
             field_name: "consumer_care_phone",
             field_label: "Consumer Care Phone",
-            raw_value: "1800-123-4567",
-            normalized_value: "18001234567",
-            confidence_score: 88,
+            raw_value: "1800 22 4020",
+            normalized_value: "1800224020",
+            confidence_score: 92,
             confidence_level: "high",
             is_human_corrected: false,
             corrected_value: null,
@@ -205,32 +232,13 @@ export default function EvidencePage() {
             extraction_status: "ai_extracted",
             bounding_box: null,
           },
-        ]);
-        setImages([
-          {
-            id: "img-demo-1",
-            image_type: "front",
-            public_url: null,
-            storage_path: "demo/front.jpg",
-            original_filename: "nutrisnack_almonds_front.jpg",
-          },
-        ]);
-        setSelectedImageId("img-demo-1");
-        let loadedImages = imagesRes.data ?? [];
-        if (typeof window !== "undefined" && loadedImages.length === 0) {
-          try {
-            const cached = sessionStorage.getItem(`packcheck_images_${id}`) || localStorage.getItem(`packcheck_images_${id}`);
-            if (cached) {
-              const parsed = JSON.parse(cached);
-              if (Array.isArray(parsed) && parsed.length > 0) loadedImages = parsed;
-            }
-          } catch (e) {
-            console.warn("Storage cache read notice:", e);
-          }
-        }
-        setFields(fieldsRes.data ?? []);
-        setImages(loadedImages);
-        if (loadedImages.length) setSelectedImageId(loadedImages[0].id);
+        ];
+      }
+
+      setFields(loadedFields);
+      setImages(loadedImages);
+      if (loadedImages.length > 0) {
+        setSelectedImageId(loadedImages[0].id);
       }
     } finally {
       setIsLoading(false);
@@ -354,50 +362,100 @@ export default function EvidencePage() {
 
           {/* IMAGE THUMBNAILS */}
           <div className="packcheck-image-thumbnails">
-            {images.map((img) => (
-              <button
-                key={img.id}
-                onClick={() => setSelectedImageId(img.id)}
-                className={`packcheck-image-thumb-btn ${selectedImageId === img.id ? "packcheck-image-thumb-active" : ""}`}
-              >
-                {img.public_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img.public_url} alt={img.image_type} className="h-12 w-12 object-cover rounded" />
-                ) : (
-                  <div className="h-12 w-12 bg-slate-100 rounded flex items-center justify-center">
-                    <Eye className="h-5 w-5 text-slate-400" />
-                  </div>
-                )}
-                <span className="text-xs capitalize">{img.image_type.replace("_", " ")}</span>
-              </button>
-            ))}
+            {images.map((img) => {
+              const thumbSrc =
+                img.public_url ||
+                (img as any).base64 ||
+                (img as any).url ||
+                (typeof window !== "undefined"
+                  ? sessionStorage.getItem("packcheck_last_image") ||
+                    localStorage.getItem("packcheck_last_image")
+                  : null);
+
+              return (
+                <button
+                  key={img.id}
+                  onClick={() => setSelectedImageId(img.id)}
+                  className={`packcheck-image-thumb-btn ${selectedImageId === img.id ? "packcheck-image-thumb-active" : ""}`}
+                >
+                  {thumbSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumbSrc}
+                      alt={img.image_type}
+                      className="h-12 w-12 object-cover rounded"
+                      onError={(e) => {
+                        if (typeof window !== "undefined") {
+                          const fallback =
+                            sessionStorage.getItem("packcheck_last_image") ||
+                            localStorage.getItem("packcheck_last_image");
+                          if (fallback && e.currentTarget.src !== fallback) {
+                            e.currentTarget.src = fallback;
+                          }
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="h-12 w-12 bg-slate-100 rounded flex items-center justify-center">
+                      <Eye className="h-5 w-5 text-slate-400" />
+                    </div>
+                  )}
+                  <span className="text-xs capitalize">{img.image_type.replace("_", " ")}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* MAIN IMAGE */}
           <div className="packcheck-evidence-main-image">
-            {selectedImage?.public_url ? (
-              <div
-                className="packcheck-image-container group cursor-zoom-in"
-                onClick={() => setZoomedImage(selectedImage.public_url!)}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={selectedImage.public_url}
-                  alt={selectedImage.image_type}
-                  className="packcheck-evidence-img"
-                />
-                <div className="packcheck-image-zoom-hint">
-                  <ZoomIn className="h-5 w-5" />
-                  Click to zoom
+            {(() => {
+              const mainSrc =
+                selectedImage?.public_url ||
+                (selectedImage as any)?.base64 ||
+                (selectedImage as any)?.url ||
+                (typeof window !== "undefined"
+                  ? sessionStorage.getItem("packcheck_last_image") ||
+                    localStorage.getItem("packcheck_last_image")
+                  : null);
+
+              if (mainSrc) {
+                return (
+                  <div
+                    className="packcheck-image-container group cursor-zoom-in"
+                    onClick={() => setZoomedImage(mainSrc)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={mainSrc}
+                      alt={selectedImage?.image_type || "Package Evidence"}
+                      className="packcheck-evidence-img"
+                      onError={(e) => {
+                        if (typeof window !== "undefined") {
+                          const fallback =
+                            sessionStorage.getItem("packcheck_last_image") ||
+                            localStorage.getItem("packcheck_last_image");
+                          if (fallback && e.currentTarget.src !== fallback) {
+                            e.currentTarget.src = fallback;
+                          }
+                        }
+                      }}
+                    />
+                    <div className="packcheck-image-zoom-hint">
+                      <ZoomIn className="h-5 w-5" />
+                      Click to zoom
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="packcheck-evidence-placeholder">
+                  <Eye className="h-12 w-12 text-slate-200" />
+                  <p className="text-slate-400 text-sm mt-2">No image available</p>
+                  <p className="text-slate-300 text-xs">Image may still be processing or upload failed</p>
                 </div>
-              </div>
-            ) : (
-              <div className="packcheck-evidence-placeholder">
-                <Eye className="h-12 w-12 text-slate-200" />
-                <p className="text-slate-400 text-sm mt-2">No image available</p>
-                <p className="text-slate-300 text-xs">Image may still be processing or upload failed</p>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* IMAGE INFO */}
