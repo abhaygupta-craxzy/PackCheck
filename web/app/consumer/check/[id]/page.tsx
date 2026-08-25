@@ -55,7 +55,25 @@ export default function ConsumerCheckResultPage() {
         const res = await getInspectionData(inspectionId);
         if (res.success) {
           setInspection(res.inspection);
-          setImages(res.images || []);
+          
+          let loadedImages = (res.images || []).filter((img: any) => img && (img.public_url || img.storage_path));
+
+          // Fallback to client cache if database image record is still indexing or local
+          if (typeof window !== "undefined" && loadedImages.length === 0) {
+            try {
+              const cached = sessionStorage.getItem(`packcheck_images_${inspectionId}`) || localStorage.getItem(`packcheck_images_${inspectionId}`);
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  loadedImages = parsed;
+                }
+              }
+            } catch (e) {
+              console.warn("Storage cache read notice:", e);
+            }
+          }
+
+          setImages(loadedImages);
           setExtractedFields(res.extractedFields || []);
           setFindings(res.findings || []);
         }
@@ -107,9 +125,7 @@ export default function ConsumerCheckResultPage() {
   const consumerCareField = getField("consumer_care");
   const countryOriginField = getField("country_of_origin");
 
-  const currentImage = images[selectedImageIndex] || {
-    public_url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800",
-  };
+  const currentImage = images[selectedImageIndex] || images[0] || null;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col antialiased">
@@ -400,35 +416,50 @@ export default function ConsumerCheckResultPage() {
             {/* Image Preview Container */}
             <div className="md:col-span-7 rounded-2xl border border-slate-200 bg-slate-950 p-2 overflow-hidden shadow-inner relative group">
               <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={currentImage.public_url}
-                  alt="Package Evidence"
-                  className="max-h-full max-w-full object-contain"
-                />
+                {currentImage?.public_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={currentImage.public_url}
+                    alt={currentImage.original_filename || "Package Evidence"}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full p-6 flex flex-col items-center justify-center text-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white space-y-2">
+                    <ImageIcon className="h-10 w-10 text-emerald-400 opacity-80 mb-1" />
+                    <h4 className="text-sm font-bold">{inspection?.product_name || "Packaged Product"}</h4>
+                    <p className="text-[11px] text-slate-400 font-mono">{inspection?.brand} • {inspection?.category}</p>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2.5 py-0.5 rounded-full mt-2">
+                      Verified Package Declarations
+                    </span>
+                  </div>
+                )}
 
-                {/* Highlight Overlay (Simulated Bounding Box) */}
-                <div className="absolute inset-x-8 bottom-8 rounded-xl border-2 border-emerald-400 bg-emerald-500/20 p-2 backdrop-blur-2xs text-white text-[11px] font-bold flex items-center justify-between shadow-lg">
-                  <span className="flex items-center gap-1.5">
-                    <Eye className="h-3.5 w-3.5 text-emerald-300" />
-                    Verified Principal Display Panel
+                {/* Highlight Overlay (Simulated Principal Display Panel Region) */}
+                <div className="absolute inset-x-4 sm:inset-x-8 bottom-4 sm:bottom-8 rounded-xl border border-emerald-400/80 bg-slate-900/80 backdrop-blur-md p-2.5 text-white text-[11px] font-bold flex items-center justify-between shadow-lg">
+                  <span className="flex items-center gap-1.5 text-emerald-300">
+                    <Eye className="h-3.5 w-3.5" />
+                    Principal Display Panel (PDP)
                   </span>
-                  <span className="bg-emerald-600 px-2 py-0.5 rounded text-[10px]">
-                    OCR Confidence 94%
+                  <span className="bg-emerald-600/90 text-white px-2 py-0.5 rounded text-[10px] font-mono">
+                    {currentImage?.image_type ? currentImage.image_type.toUpperCase() : "FRONT"}
                   </span>
                 </div>
               </div>
 
+              {/* Multi-Image Switcher */}
               {images.length > 1 && (
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-800">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 mr-1">
+                    Images ({images.length}):
+                  </span>
                   {images.map((img, idx) => (
                     <button
                       key={img.id || idx}
                       type="button"
                       onClick={() => setSelectedImageIndex(idx)}
-                      className={`relative h-12 w-12 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
+                      className={`relative h-11 w-11 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
                         selectedImageIndex === idx
-                          ? "border-emerald-500 ring-2 ring-emerald-500/40"
+                          ? "border-emerald-400 ring-2 ring-emerald-500/50 scale-105"
                           : "border-slate-700 opacity-60 hover:opacity-100"
                       }`}
                     >
@@ -438,6 +469,9 @@ export default function ConsumerCheckResultPage() {
                         alt="thumb"
                         className="w-full h-full object-cover"
                       />
+                      <span className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[8px] font-bold text-white text-center">
+                        {img.image_type || `#${idx + 1}`}
+                      </span>
                     </button>
                   ))}
                 </div>

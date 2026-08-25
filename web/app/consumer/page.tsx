@@ -236,25 +236,54 @@ export default function ConsumerDashboard() {
 
       const inspectionId = createRes.inspectionId;
 
-      // Step 1: Upload Images
+      // Step 1: Upload All Images & Cache
       setCurrentStepIndex(2); // Identifying product information
-      const primaryImage = images[0];
+      const uploadedImagesList: any[] = [];
+      let primaryImageId: string | null = null;
 
-      const uploadRes = await uploadInspectionImage(
-        inspectionId,
-        primaryImage.base64,
-        primaryImage.mimeType,
-        primaryImage.name,
-        primaryImage.imageType || "front"
-      );
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        const uploadRes = await uploadInspectionImage(
+          inspectionId,
+          img.base64,
+          img.mimeType,
+          img.name,
+          img.imageType || (i === 0 ? "front" : "back")
+        );
 
-      const imageId = uploadRes.imageId || `img_${Date.now()}`;
+        const imgId = uploadRes.imageId || `img_${Date.now()}_${i}`;
+        if (i === 0) primaryImageId = imgId;
+
+        uploadedImagesList.push({
+          id: imgId,
+          public_url: uploadRes.publicUrl || img.base64,
+          image_type: img.imageType || (i === 0 ? "front" : "back"),
+          original_filename: img.name,
+        });
+      }
+
+      // Persist to client storage cache so result & evidence viewers always have instant access to actual images
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(
+            `packcheck_images_${inspectionId}`,
+            JSON.stringify(uploadedImagesList)
+          );
+          localStorage.setItem(
+            `packcheck_images_${inspectionId}`,
+            JSON.stringify(uploadedImagesList)
+          );
+        } catch (e) {
+          console.warn("Storage quota notice:", e);
+        }
+      }
 
       // Step 2: Run Gemini 1.5 Flash Vision OCR & Declaration Extraction
       setCurrentStepIndex(3); // Extracting mandatory declarations
+      const primaryImage = images[0];
       await processImageOCR(
         inspectionId,
-        imageId,
+        primaryImageId || `img_${Date.now()}`,
         primaryImage.base64,
         primaryImage.mimeType
       );
