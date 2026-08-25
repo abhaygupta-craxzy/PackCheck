@@ -12,17 +12,17 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // =========================================================================
-// TYPES
+// TYPES (internal to Server Actions file)
 // =========================================================================
 
-export interface OCRToken {
+interface OCRToken {
   id: string;
   text: string;
   confidence: number;
   region: string; // top-left, top-right, bottom-left, bottom-right, center
 }
 
-export interface ExtractedDeclarationField {
+interface ExtractedDeclarationField {
   fieldName: string;
   fieldLabel: string;
   rawValue: string | null;
@@ -34,7 +34,7 @@ export interface ExtractedDeclarationField {
   extractionNotes?: string;
 }
 
-export interface GeminiExtractionResult {
+interface GeminiExtractionResult {
   success: boolean;
   imageId?: string;
   ocrTokens?: OCRToken[];
@@ -178,10 +178,10 @@ async function callGeminiVision(imageBase64: string, mimeType: string): Promise<
 }
 
 // =========================================================================
-// VERIFIED LEGAL METROLOGY PRODUCTS CATALOG
+// VERIFIED LEGAL METROLOGY PRODUCTS CATALOG (Internal)
 // =========================================================================
 
-export interface GroundTruthProduct {
+interface GroundTruthProduct {
   productId: string;
   brand: string;
   productName: string;
@@ -199,7 +199,7 @@ export interface GroundTruthProduct {
   keywords: string[];
 }
 
-export const VERIFIED_PRODUCTS_CATALOG: GroundTruthProduct[] = [
+const VERIFIED_PRODUCTS_CATALOG: GroundTruthProduct[] = [
   {
     productId: "PC-001",
     brand: "Nieu",
