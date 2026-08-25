@@ -308,14 +308,28 @@ export default function ConsumerDashboard() {
           const inspectionObj = {
             id: inspectionId,
             case_number: createRes.caseNumber || `LM-2026-${inspectionId.slice(-4)}`,
+            title: `${effectiveBrand} — ${effectiveProductName}`,
             product_name: effectiveProductName,
             brand: effectiveBrand,
             category: category || "Packaged Food",
             status: "review_required",
+            source_type: "citizen_scan",
             created_at: new Date().toISOString(),
           };
           sessionStorage.setItem(`packcheck_inspection_${inspectionId}`, JSON.stringify(inspectionObj));
           localStorage.setItem(`packcheck_inspection_${inspectionId}`, JSON.stringify(inspectionObj));
+
+          const existingListRaw =
+            localStorage.getItem("packcheck_inspections_list") ||
+            sessionStorage.getItem("packcheck_inspections_list");
+          let existingList = existingListRaw ? JSON.parse(existingListRaw) : [];
+          if (!Array.isArray(existingList)) existingList = [];
+          existingList = [
+            inspectionObj,
+            ...existingList.filter((x: any) => x.id !== inspectionId),
+          ];
+          localStorage.setItem("packcheck_inspections_list", JSON.stringify(existingList));
+          sessionStorage.setItem("packcheck_inspections_list", JSON.stringify(existingList));
         } catch (e) {
           console.warn("Storage quota notice:", e);
         }

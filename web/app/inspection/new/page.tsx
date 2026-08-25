@@ -276,6 +276,18 @@ export default function NewInspectionPage() {
             `packcheck_inspection_${newInspectionId}`,
             JSON.stringify(inspectionObj)
           );
+
+          const existingListRaw =
+            localStorage.getItem("packcheck_inspections_list") ||
+            sessionStorage.getItem("packcheck_inspections_list");
+          let existingList = existingListRaw ? JSON.parse(existingListRaw) : [];
+          if (!Array.isArray(existingList)) existingList = [];
+          existingList = [
+            inspectionObj,
+            ...existingList.filter((x: any) => x.id !== newInspectionId),
+          ];
+          localStorage.setItem("packcheck_inspections_list", JSON.stringify(existingList));
+          sessionStorage.setItem("packcheck_inspections_list", JSON.stringify(existingList));
         } catch (e) {
           console.warn("Storage cache write notice:", e);
         }
