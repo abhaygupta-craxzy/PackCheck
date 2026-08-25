@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
   Building2,
@@ -269,7 +268,6 @@ const SEED_FALLBACK_CASES: DBInspection[] = [
 // =========================================================================
 
 export default function InvestigatorDashboard() {
-  const router = useRouter();
   const supabase = createClient();
 
   const [inspections, setInspections] = useState<DBInspection[]>([]);

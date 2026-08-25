@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
   Upload,
@@ -79,7 +78,6 @@ type PipelineStep =
 // =========================================================================
 
 export default function NewInspectionPage() {
-  const router = useRouter();
 
   // Step management
   const [currentStep, setCurrentStep] = useState<0 | 1 | 2 | 3>(0);
@@ -660,9 +658,9 @@ export default function NewInspectionPage() {
             <div className="packcheck-error-banner">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>{processingError}</span>
-              <button onClick={() => router.push("/dashboard")} className="ml-auto text-sm underline">
+              <Link href="/investigator" className="ml-auto text-sm underline">
                 Go to Dashboard
-              </button>
+              </Link>
             </div>
           )}
         </div>
