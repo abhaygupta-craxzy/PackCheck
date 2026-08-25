@@ -330,7 +330,7 @@ export default function EvidencePage() {
       {/* HEADER */}
       <header className="packcheck-workspace-header">
         <div className="packcheck-workspace-nav">
-          <Link href="/dashboard" className="packcheck-back-btn">
+          <Link href="/investigator" className="packcheck-back-btn">
             <ArrowLeft className="h-4 w-4" />
             Dashboard
           </Link>

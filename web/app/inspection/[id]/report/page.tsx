@@ -135,6 +135,28 @@ export default function ReportPage() {
       }
     }
 
+    if (!existingReport) {
+      const prodName = inspRes.data?.product_name || "Packaged Product";
+      const brandName = inspRes.data?.brand || "Brand";
+      const critCount = (findRes.data ?? []).filter((f: any) => f.severity === "critical").length;
+      const warnCount = (findRes.data ?? []).filter((f: any) => f.severity === "warning").length;
+
+      setReportNumber(`RPT-${inspRes.data?.case_number || `LM-2026-${id.slice(-4)}`}`);
+      setOfficerObservation(
+        `Physical package evidence for ${brandName} — ${prodName} inspected under the Legal Metrology (Packaged Commodities) Rules, 2011. Extracted mandatory declarations verified across Principal Display Panel (PDP) and package panels. ${critCount > 0 ? `${critCount} critical compliance violations identified.` : warnCount > 0 ? `${warnCount} standard observations identified.` : "All mandatory declarations verified."}`
+      );
+      setConclusion(
+        critCount > 0
+          ? `The packaged commodity requires enforcement rectification under Rule 6 and Rule 7 of the Legal Metrology (Packaged Commodities) Rules, 2011.`
+          : "The package evidence satisfies mandatory declaration requirements under PCR 2011."
+      );
+      setRecommendedAction(
+        critCount > 0
+          ? "Issue compounding notice under Section 48 / Show cause notice under Section 36(1) of the Legal Metrology Act, 2009."
+          : "Inspection verified and cleared for retail distribution."
+      );
+    }
+
     setIsLoading(false);
   }, [id, supabase]);
 
@@ -214,7 +236,7 @@ export default function ReportPage() {
     <div className="packcheck-workspace">
       <header className="packcheck-workspace-header">
         <div className="packcheck-workspace-nav">
-          <Link href="/dashboard" className="packcheck-back-btn">
+          <Link href="/investigator" className="packcheck-back-btn">
             <ArrowLeft className="h-4 w-4" />
             Dashboard
           </Link>

@@ -341,7 +341,7 @@ export default function NewInspectionPage() {
     <div className="packcheck-intake-page">
       {/* HEADER */}
       <header className="packcheck-intake-header">
-        <Link href="/dashboard" className="packcheck-back-btn">
+        <Link href="/investigator" className="packcheck-back-btn">
           <ArrowLeft className="h-4 w-4" />
           <span>Dashboard</span>
         </Link>
