@@ -62,39 +62,62 @@ export default function ConsumerCheckResultPage() {
       setIsLoading(true);
       try {
         const res = await getInspectionData(inspectionId);
-        if (res.success) {
-          setInspection(res.inspection);
-          
-          let loadedImages = (res.images || []).filter((img: any) => img && (img.public_url || img.storage_path));
+        let inspData = res.inspection || null;
+        let loadedImages = (res.images || []).filter((img: any) => img && (img.public_url || img.base64));
 
-          // Fallback to client cache if database image record is still indexing or local
-          if (typeof window !== "undefined" && loadedImages.length === 0) {
-            try {
-              const cached = sessionStorage.getItem(`packcheck_images_${inspectionId}`) || localStorage.getItem(`packcheck_images_${inspectionId}`);
-              if (cached) {
-                const parsed = JSON.parse(cached);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  loadedImages = parsed;
-                }
+        // Always merge with client storage cache if available
+        if (typeof window !== "undefined") {
+          try {
+            const cached =
+              sessionStorage.getItem(`packcheck_images_${inspectionId}`) ||
+              localStorage.getItem(`packcheck_images_${inspectionId}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                loadedImages = parsed;
               }
-            } catch (e) {
-              console.warn("Storage cache read notice:", e);
             }
+            const lastImg =
+              sessionStorage.getItem("packcheck_last_image") ||
+              localStorage.getItem("packcheck_last_image");
+            if (lastImg && (loadedImages.length === 0 || !loadedImages[0]?.public_url)) {
+              loadedImages = [{ id: "cached-1", public_url: lastImg, base64: lastImg, image_type: "front" }];
+            }
+            const cachedInsp =
+              sessionStorage.getItem(`packcheck_inspection_${inspectionId}`) ||
+              localStorage.getItem(`packcheck_inspection_${inspectionId}`);
+            if (cachedInsp && (!inspData || !inspData.product_name)) {
+              inspData = JSON.parse(cachedInsp);
+            }
+          } catch (e) {
+            console.warn("Storage cache read notice:", e);
           }
+        }
 
-          setImages(loadedImages);
-          setExtractedFields(res.extractedFields || []);
-          setFindings(res.findings || []);
+        setInspection(inspData);
+        setImages(loadedImages);
+        setExtractedFields(res.extractedFields || []);
+        setFindings(res.findings || []);
 
-          // Check if already flagged
-          if (res.citizenFlag || res.inspection?.is_flagged) {
-            setIsFlagged(true);
-            const statusVal = String(res.citizenFlag?.status || res.inspection?.flag_status || "pending_review");
-            setFlagStatus(statusVal);
-          }
+        // Check if already flagged
+        if (res.citizenFlag || inspData?.is_flagged) {
+          setIsFlagged(true);
+          const statusVal = String(res.citizenFlag?.status || inspData?.flag_status || "pending_review");
+          setFlagStatus(statusVal);
         }
       } catch (err) {
         console.error("Failed to load check result:", err);
+        if (typeof window !== "undefined") {
+          try {
+            const cached = sessionStorage.getItem(`packcheck_images_${inspectionId}`) || localStorage.getItem(`packcheck_images_${inspectionId}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed)) setImages(parsed);
+            }
+            const cachedInsp = sessionStorage.getItem(`packcheck_inspection_${inspectionId}`) || localStorage.getItem(`packcheck_inspection_${inspectionId}`);
+            if (cachedInsp) setInspection(JSON.parse(cachedInsp));
+          } catch (e) {}
+        }
       } finally {
         setIsLoading(false);
       }
@@ -341,17 +364,17 @@ export default function ConsumerCheckResultPage() {
             <FieldCard
               icon={<Tag className="h-4 w-4 text-blue-600" />}
               label="Product / Commodity"
-              value={inspection?.product_name || "Roasted Almonds"}
-              brand={inspection?.brand || "NutriSnack"}
-              status="detected"
+              value={inspection?.product_name || "Packaged Product"}
+              brand={inspection?.brand || "Detected Brand"}
+              status={inspection?.product_name ? "detected" : "missing"}
               onShowEvidence={() => setActiveEvidenceField("product_name")}
             />
 
             <FieldCard
               icon={<Scale className="h-4 w-4 text-emerald-600" />}
               label="Net Quantity"
-              value={netQtyField?.raw_value || "200 g"}
-              status={netQtyField?.is_present !== false ? "detected" : "missing"}
+              value={netQtyField?.raw_value || "Not detected"}
+              status={netQtyField?.raw_value ? "detected" : "missing"}
               notes={netQtyField?.validation_status === "flagged" ? "Numeral height check" : undefined}
               onShowEvidence={() => setActiveEvidenceField("net_quantity")}
             />
@@ -359,32 +382,32 @@ export default function ConsumerCheckResultPage() {
             <FieldCard
               icon={<Sparkles className="h-4 w-4 text-indigo-600" />}
               label="Maximum Retail Price (MRP)"
-              value={mrpField?.raw_value || "₹ 199.00 (Incl. of all taxes)"}
-              status={mrpField?.is_present !== false ? "detected" : "missing"}
+              value={mrpField?.raw_value || "Not detected"}
+              status={mrpField?.raw_value ? "detected" : "missing"}
               onShowEvidence={() => setActiveEvidenceField("mrp")}
             />
 
             <FieldCard
               icon={<Calendar className="h-4 w-4 text-amber-600" />}
               label="Date of Packing / Mfg"
-              value={mfgDateField?.raw_value || "07/2026"}
-              status={mfgDateField?.is_present !== false ? "detected" : "unclear"}
+              value={mfgDateField?.raw_value || "Not detected"}
+              status={mfgDateField?.raw_value ? "detected" : "unclear"}
               onShowEvidence={() => setActiveEvidenceField("mfg_date")}
             />
 
             <FieldCard
               icon={<Building2 className="h-4 w-4 text-purple-600" />}
               label="Manufacturer / Packer"
-              value={mfgDetailsField?.raw_value || inspection?.brand || "NutriSnack Foods Ltd."}
-              status={mfgDetailsField?.is_present !== false ? "detected" : "missing"}
+              value={mfgDetailsField?.raw_value || inspection?.brand || "Not detected"}
+              status={mfgDetailsField?.raw_value ? "detected" : "missing"}
               onShowEvidence={() => setActiveEvidenceField("manufacturer")}
             />
 
             <FieldCard
               icon={<PhoneCall className="h-4 w-4 text-teal-600" />}
               label="Consumer Care Contact"
-              value={consumerCareField?.raw_value || "feedback@nutrisnack.in"}
-              status={consumerCareField?.is_present !== false ? "detected" : "unclear"}
+              value={consumerCareField?.raw_value || "Not detected"}
+              status={consumerCareField?.raw_value ? "detected" : "unclear"}
               onShowEvidence={() => setActiveEvidenceField("consumer_care")}
             />
           </div>
@@ -502,23 +525,49 @@ export default function ConsumerCheckResultPage() {
             {/* Image Preview Container */}
             <div className="md:col-span-7 rounded-2xl border border-slate-200 bg-slate-950 p-2 overflow-hidden shadow-inner relative group">
               <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
-                {currentImage?.public_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={currentImage.public_url}
-                    alt={currentImage.original_filename || "Package Evidence"}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                ) : (
-                  <div className="w-full h-full p-6 flex flex-col items-center justify-center text-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white space-y-2">
-                    <ImageIcon className="h-10 w-10 text-emerald-400 opacity-80 mb-1" />
-                    <h4 className="text-sm font-bold">{inspection?.product_name || "Packaged Product"}</h4>
-                    <p className="text-[11px] text-slate-400 font-mono">{inspection?.brand} • {inspection?.category}</p>
-                    <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2.5 py-0.5 rounded-full mt-2">
-                      Verified Package Declarations
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const imageSrc =
+                    currentImage?.public_url ||
+                    currentImage?.base64 ||
+                    currentImage?.url ||
+                    (typeof currentImage === "string" ? currentImage : null) ||
+                    (typeof window !== "undefined"
+                      ? sessionStorage.getItem(`packcheck_last_image`) ||
+                        localStorage.getItem(`packcheck_last_image`)
+                      : null);
+
+                  if (imageSrc) {
+                    return (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imageSrc}
+                        alt={currentImage?.original_filename || "Package Evidence"}
+                        className="max-h-full max-w-full object-contain p-1"
+                        onError={(e) => {
+                          if (typeof window !== "undefined") {
+                            const fallback =
+                              sessionStorage.getItem(`packcheck_last_image`) ||
+                              localStorage.getItem(`packcheck_last_image`);
+                            if (fallback && e.currentTarget.src !== fallback) {
+                              e.currentTarget.src = fallback;
+                            }
+                          }
+                        }}
+                      />
+                    );
+                  }
+
+                  return (
+                    <div className="w-full h-full p-6 flex flex-col items-center justify-center text-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white space-y-2">
+                      <ImageIcon className="h-10 w-10 text-emerald-400 opacity-80 mb-1" />
+                      <h4 className="text-sm font-bold">{inspection?.product_name || "Packaged Product"}</h4>
+                      <p className="text-[11px] text-slate-400 font-mono">{inspection?.brand} • {inspection?.category}</p>
+                      <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2.5 py-0.5 rounded-full mt-2">
+                        Verified Package Declarations
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Highlight Overlay (Simulated Principal Display Panel Region) */}
                 <div className="absolute inset-x-4 sm:inset-x-8 bottom-4 sm:bottom-8 rounded-xl border border-emerald-400/80 bg-slate-900/80 backdrop-blur-md p-2.5 text-white text-[11px] font-bold flex items-center justify-between shadow-lg">
@@ -538,28 +587,52 @@ export default function ConsumerCheckResultPage() {
                   <span className="text-[10px] font-extrabold uppercase text-slate-400 mr-1">
                     Images ({images.length}):
                   </span>
-                  {images.map((img, idx) => (
-                    <button
-                      key={img.id || idx}
-                      type="button"
-                      onClick={() => setSelectedImageIndex(idx)}
-                      className={`relative h-11 w-11 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
-                        selectedImageIndex === idx
-                          ? "border-emerald-400 ring-2 ring-emerald-500/50 scale-105"
-                          : "border-slate-700 opacity-60 hover:opacity-100"
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img.public_url}
-                        alt="thumb"
-                        className="w-full h-full object-cover"
-                      />
-                      <span className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[8px] font-bold text-white text-center">
-                        {img.image_type || `#${idx + 1}`}
-                      </span>
-                    </button>
-                  ))}
+                  {images.map((img, idx) => {
+                    const thumbSrc =
+                      img.public_url ||
+                      img.base64 ||
+                      img.url ||
+                      (typeof img === "string" ? img : null);
+
+                    return (
+                      <button
+                        key={img.id || idx}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(idx)}
+                        className={`relative h-11 w-11 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
+                          selectedImageIndex === idx
+                            ? "border-emerald-400 ring-2 ring-emerald-500/50 scale-105"
+                            : "border-slate-700 opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        {thumbSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumbSrc}
+                            alt="thumb"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              if (typeof window !== "undefined") {
+                                const fallback =
+                                  sessionStorage.getItem(`packcheck_last_image`) ||
+                                  localStorage.getItem(`packcheck_last_image`);
+                                if (fallback && e.currentTarget.src !== fallback) {
+                                  e.currentTarget.src = fallback;
+                                }
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] text-slate-400 font-bold">
+                            #{idx + 1}
+                          </div>
+                        )}
+                        <span className="absolute bottom-0 inset-x-0 bg-slate-950/80 text-[8px] font-bold text-white text-center">
+                          {img.image_type || `#${idx + 1}`}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -573,29 +646,29 @@ export default function ConsumerCheckResultPage() {
               <div className="space-y-2">
                 <EvidenceItem
                   label="MRP Declaration"
-                  value={mrpField?.raw_value || "₹ 199.00 (Incl. of all taxes)"}
-                  region="Principal Display Panel (Bottom-Right)"
+                  value={mrpField?.raw_value || "Not Detected"}
+                  region={mrpField?.evidence_region || "Principal Display Panel"}
                   active={activeEvidenceField === "mrp"}
                 />
 
                 <EvidenceItem
                   label="Net Quantity"
-                  value={netQtyField?.raw_value || "200 g"}
-                  region="Principal Display Panel (Bottom-Left)"
+                  value={netQtyField?.raw_value || "Not Detected"}
+                  region={netQtyField?.evidence_region || "Principal Display Panel"}
                   active={activeEvidenceField === "net_quantity"}
                 />
 
                 <EvidenceItem
                   label="Manufacturer & Packer"
-                  value={mfgDetailsField?.raw_value || "NutriSnack Foods Ltd."}
-                  region="Back Panel (Address Block)"
+                  value={mfgDetailsField?.raw_value || "Not Detected"}
+                  region={mfgDetailsField?.evidence_region || "Package Label"}
                   active={activeEvidenceField === "manufacturer"}
                 />
 
                 <EvidenceItem
                   label="Date of Packing"
-                  value={mfgDateField?.raw_value || "07/2026"}
-                  region="Bottom Crimp"
+                  value={mfgDateField?.raw_value || "Not Detected"}
+                  region={mfgDateField?.evidence_region || "Package Crimp / Panel"}
                   active={activeEvidenceField === "mfg_date"}
                 />
               </div>

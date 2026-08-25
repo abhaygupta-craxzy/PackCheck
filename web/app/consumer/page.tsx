@@ -148,7 +148,14 @@ export default function ConsumerDashboard() {
   };
 
   // Quick Demo Preload for instant evaluation
-  const handleLoadSample = (sampleName: string, sampleBrand: string, sampleCategory: string, sampleUrl: string) => {
+  const handleLoadSample = (
+    sampleName: string,
+    sampleBrand: string,
+    sampleCategory: string,
+    netQty: string = "50 g",
+    mrpText: string = "Rs. 20.00",
+    bgTheme: string = "#047857"
+  ) => {
     setProductName(sampleName);
     setBrand(sampleBrand);
     setCategory(sampleCategory);
@@ -159,32 +166,56 @@ export default function ConsumerDashboard() {
     canvas.height = 800;
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      // Draw simulated package
+      // Draw simulated package header
+      ctx.fillStyle = bgTheme;
+      ctx.fillRect(0, 0, 600, 180);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 34px sans-serif";
+      ctx.fillText(sampleBrand.toUpperCase(), 40, 70);
+
+      ctx.font = "bold 22px sans-serif";
+      ctx.fillText(sampleName, 40, 115);
+
+      ctx.font = "14px sans-serif";
+      ctx.fillText(`Category: ${sampleCategory}`, 40, 150);
+
+      // Package Body
       ctx.fillStyle = "#f8fafc";
-      ctx.fillRect(0, 0, 600, 800);
+      ctx.fillRect(0, 180, 600, 620);
 
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "bold 32px sans-serif";
-      ctx.fillText(sampleBrand, 50, 100);
-
-      ctx.fillStyle = "#334155";
-      ctx.font = "600 24px sans-serif";
-      ctx.fillText(sampleName, 50, 140);
-
-      ctx.fillStyle = "#e2e8f0";
-      ctx.fillRect(50, 180, 500, 300);
+      // PDP Region Box
+      ctx.strokeStyle = "#10b981";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(30, 210, 540, 260);
 
       ctx.fillStyle = "#0f172a";
       ctx.font = "bold 20px sans-serif";
-      ctx.fillText("DECLARATIONS (PCR 2011)", 50, 520);
+      ctx.fillText("PRINCIPAL DISPLAY PANEL (PDP)", 50, 245);
 
-      ctx.font = "16px sans-serif";
+      ctx.fillStyle = "#334155";
+      ctx.font = "bold 18px sans-serif";
+      ctx.fillText(`Net Quantity: ${netQty}`, 50, 290);
+      ctx.fillText(`MRP: ${mrpText} (Incl. of all taxes)`, 50, 330);
+      ctx.fillText(`Unit Sale Price: ₹0.40/g`, 50, 370);
+      ctx.fillText(`Date of Packing: 06/2026`, 50, 410);
+
+      // Back Panel Declarations
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(30, 490, 540, 280);
+
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText("MANUFACTURER & CONSUMER CARE DETAILS", 50, 525);
+
       ctx.fillStyle = "#475569";
-      ctx.fillText("Net Quantity: 200 g", 50, 560);
-      ctx.fillText("MRP: Rs. 199.00 (Incl. of all taxes)", 50, 590);
-      ctx.fillText("Mfg Date: 07/2026", 50, 620);
-      ctx.fillText("Consumer Care: feedback@nutrisnack.in", 50, 650);
-      ctx.fillText("Country of Origin: India", 50, 680);
+      ctx.font = "13px sans-serif";
+      ctx.fillText(`Mfd / Mktd by: ${sampleBrand}`, 50, 560);
+      ctx.fillText("Regd. Office / Industrial Area, Phase-1, India", 50, 585);
+      ctx.fillText("Consumer Care: 1800-22-4020 / care@feedback.in", 50, 615);
+      ctx.fillText("FSSAI Lic No: 1012064000885 | Country of Origin: India", 50, 645);
+      ctx.fillText("Ingredients: Potato, Edible Vegetable Oil, Seasoning, Spices", 50, 675);
     }
 
     const mockBase64 = canvas.toDataURL("image/jpeg");
@@ -273,6 +304,18 @@ export default function ConsumerDashboard() {
             `packcheck_images_${inspectionId}`,
             JSON.stringify(uploadedImagesList)
           );
+
+          const inspectionObj = {
+            id: inspectionId,
+            case_number: createRes.caseNumber || `LM-2026-${inspectionId.slice(-4)}`,
+            product_name: effectiveProductName,
+            brand: effectiveBrand,
+            category: category || "Packaged Food",
+            status: "review_required",
+            created_at: new Date().toISOString(),
+          };
+          sessionStorage.setItem(`packcheck_inspection_${inspectionId}`, JSON.stringify(inspectionObj));
+          localStorage.setItem(`packcheck_inspection_${inspectionId}`, JSON.stringify(inspectionObj));
         } catch (e) {
           console.warn("Storage quota notice:", e);
         }
@@ -595,34 +638,87 @@ export default function ConsumerDashboard() {
           {/* Quick Preload Demo Packages (Optional for fast testing) */}
           <div className="pt-2">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">
-              Or Test with Sample Commodities:
+              Or Test with Sample Verified Commodities:
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <button
                 type="button"
-                onClick={() => handleLoadSample("Roasted Almonds 200g", "NutriSnack Foods Ltd.", "Packaged Food", "")}
-                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition cursor-pointer text-xs"
+                onClick={() =>
+                  handleLoadSample(
+                    "American Style Cream & Onion Potato Chips",
+                    "Lay's",
+                    "Potato Chips",
+                    "50 g",
+                    "Rs. 20.00",
+                    "#15803d"
+                  )
+                }
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50/70 hover:border-emerald-300 text-left transition cursor-pointer text-xs group"
               >
-                <span className="font-bold text-slate-900 block">🌰 NutriSnack Roasted Almonds</span>
-                <span className="text-[11px] text-slate-500 font-medium">Packaged Food • MRP ₹199</span>
+                <span className="font-bold text-slate-900 group-hover:text-emerald-800 block truncate">
+                  🥔 Lay&apos;s Cream &amp; Onion
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">50g • MRP ₹20</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleLoadSample("Refined Mustard Oil 1L", "PureDrop Agro Mills", "Edible Oils", "")}
-                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition cursor-pointer text-xs"
+                onClick={() =>
+                  handleLoadSample(
+                    "Tomato Ketchup",
+                    "Nieu",
+                    "Sauce / Ketchup",
+                    "8 g",
+                    "Rs. 1.50",
+                    "#b91c1c"
+                  )
+                }
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50/70 hover:border-rose-300 text-left transition cursor-pointer text-xs group"
               >
-                <span className="font-bold text-slate-900 block">🛢️ PureDrop Mustard Oil 1L</span>
-                <span className="text-[11px] text-slate-500 font-medium">Edible Oils • MRP ₹165</span>
+                <span className="font-bold text-slate-900 group-hover:text-rose-800 block truncate">
+                  🍅 Nieu Tomato Ketchup
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">8g • MRP ₹1.50</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleLoadSample("Organic Green Tea 100 Bags", "Arogya Herbal", "Beverages", "")}
-                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition cursor-pointer text-xs"
+                onClick={() =>
+                  handleLoadSample(
+                    "Diet Coke",
+                    "Coca-Cola",
+                    "Carbonated Soft Drink",
+                    "330 ml",
+                    "Rs. 40.00",
+                    "#334155"
+                  )
+                }
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition cursor-pointer text-xs group"
               >
-                <span className="font-bold text-slate-900 block">🍵 Arogya Green Tea Bags</span>
-                <span className="text-[11px] text-slate-500 font-medium">Beverages • MRP ₹340</span>
+                <span className="font-bold text-slate-900 group-hover:text-slate-900 block truncate">
+                  🥤 Diet Coke 330ml
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">330ml • MRP ₹40</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleLoadSample(
+                    "NutriSnack Roasted Almonds 200g",
+                    "NutriSnack Foods Ltd.",
+                    "Packaged Food",
+                    "200 g",
+                    "Rs. 199.00",
+                    "#047857"
+                  )
+                }
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50/70 hover:border-emerald-300 text-left transition cursor-pointer text-xs group"
+              >
+                <span className="font-bold text-slate-900 group-hover:text-emerald-800 block truncate">
+                  🌰 NutriSnack Almonds
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">200g • MRP ₹199</span>
               </button>
             </div>
           </div>
